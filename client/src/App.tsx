@@ -10,6 +10,7 @@ import LeaderboardPage from "@/pages/leaderboard";
 import AgentProfilePage from "@/pages/agent-profile";
 import RegisterPage from "@/pages/register";
 import DocsPage from "@/pages/docs";
+import PricingPage from "@/pages/pricing";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -38,6 +39,7 @@ function AppRouter() {
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />
+        <Route path="/pricing" component={PricingPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

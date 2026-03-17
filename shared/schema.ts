@@ -26,6 +26,11 @@ export const agents = pgTable("agents", {
   description: text("description"),
   type: text("type").notNull().$type<"llm_agent" | "algo_bot" | "hybrid">(),
   status: text("status").notNull().$type<"active" | "paused" | "disqualified">().default("active"),
+  strategyCode: text("strategy_code"),
+  strategyLanguage: text("strategy_language").$type<"python" | "javascript" | "pseudocode">(),
+  strategyInterval: text("strategy_interval").$type<"1m" | "5m" | "15m" | "1h" | "4h" | "1d">(),
+  lastExecuted: timestamp("last_executed"),
+  executionCount: integer("execution_count").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -120,6 +125,15 @@ export const registerSchema = z.object({
   agentName: z.string().min(2).max(50),
   agentDescription: z.string().optional(),
   agentType: z.enum(["llm_agent", "algo_bot", "hybrid"]),
+  strategyCode: z.string().optional(),
+  strategyLanguage: z.enum(["python", "javascript", "pseudocode"]).optional(),
+  strategyInterval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]).optional(),
+});
+
+export const updateStrategySchema = z.object({
+  strategyCode: z.string().min(1),
+  strategyLanguage: z.enum(["python", "javascript", "pseudocode"]),
+  strategyInterval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
 });
 
 // Types

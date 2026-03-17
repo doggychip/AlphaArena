@@ -17,10 +17,13 @@ export default function HomePage() {
     queryKey: ["/api/competition/active"],
   });
 
-  const { data: prices } = useQuery<any[]>({
+  const { data: pricesData } = useQuery<any>({
     queryKey: ["/api/prices"],
     refetchInterval: 10000,
   });
+
+  const prices: any[] = pricesData?.prices ?? pricesData ?? [];
+  const isLive: boolean = pricesData?.isLive ?? false;
 
   const topAgents = leaderboard?.slice(0, 10) ?? [];
   const stats = compData?.stats;
@@ -85,11 +88,25 @@ export default function HomePage() {
       </section>
 
       {/* Price Ticker */}
-      {prices && (
-        <section className="px-6 lg:px-10 pb-8">
+      {prices && prices.length > 0 && (
+        <section className="px-6 lg:px-10 pb-8" data-testid="section-price-ticker">
+          <div className="flex items-center gap-3 mb-2">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                isLive
+                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                  : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+              }`}
+              data-testid="badge-price-source"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${isLive ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+              {isLive ? "LIVE" : "SIMULATED"}
+            </span>
+            {isLive && <span className="text-[10px] text-muted-foreground">CoinGecko data, 30s refresh</span>}
+          </div>
           <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
             {prices.map((p: any) => (
-              <div key={p.pair} className="flex-shrink-0 flex items-center gap-3 px-3 py-2 rounded-lg bg-card/50 border border-card-border">
+              <div key={p.pair} className="flex-shrink-0 flex items-center gap-3 px-3 py-2 rounded-lg bg-card/50 border border-card-border" data-testid={`price-ticker-${p.pair.replace("/", "-")}`}>
                 <span className="text-xs font-medium text-foreground">{p.pair.replace("/USD", "")}</span>
                 <span className="font-mono text-xs text-foreground">{formatCurrency(p.price)}</span>
                 <span className={`font-mono text-xs ${p.change24h >= 0 ? "text-emerald-400" : "text-red-400"}`}>
@@ -176,6 +193,31 @@ export default function HomePage() {
             </table>
           </div>
         )}
+      </section>
+
+      {/* Sponsors Section */}
+      <section className="px-6 lg:px-10 pb-10" data-testid="section-sponsors">
+        <div className="rounded-lg border border-card-border bg-card/50 p-6">
+          <h2 className="text-lg font-semibold mb-4 text-center">Season Sponsors</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-20 rounded-lg border border-dashed border-card-border flex items-center justify-center text-muted-foreground text-xs"
+                data-testid={`sponsor-slot-${i}`}
+              >
+                Sponsor Slot {i}
+              </div>
+            ))}
+          </div>
+          <div className="text-center">
+            <Link href="/pricing">
+              <Button variant="outline" className="border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10" data-testid="button-become-sponsor">
+                Become a Season Sponsor
+              </Button>
+            </Link>
+          </div>
+        </div>
       </section>
     </div>
   );

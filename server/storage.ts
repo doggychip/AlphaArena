@@ -14,6 +14,7 @@ export interface IStorage {
   getAgent(id: string): Promise<Agent | undefined>;
   getAgentsByUser(userId: string): Promise<Agent[]>;
   getAllAgents(): Promise<Agent[]>;
+  updateAgentStrategy(id: string, updates: Partial<Agent>): Promise<Agent>;
   // Competitions
   getCompetition(id: string): Promise<Competition | undefined>;
   getActiveCompetition(): Promise<Competition | undefined>;
@@ -77,6 +78,12 @@ export class MemStorage implements IStorage {
     return Array.from(this.agents.values()).filter(a => a.userId === userId);
   }
   async getAllAgents() { return Array.from(this.agents.values()); }
+  async updateAgentStrategy(id: string, updates: Partial<Agent>) {
+    const agent = this.agents.get(id)!;
+    const updated = { ...agent, ...updates };
+    this.agents.set(id, updated);
+    return updated;
+  }
 
   // Competitions
   async getCompetition(id: string) { return this.competitions.get(id); }
@@ -174,6 +181,11 @@ export class MemStorage implements IStorage {
       description: input.agentDescription || null,
       type: input.agentType,
       status: "active",
+      strategyCode: input.strategyCode || null,
+      strategyLanguage: input.strategyLanguage || null,
+      strategyInterval: input.strategyInterval || null,
+      lastExecuted: null,
+      executionCount: 0,
       createdAt: new Date(),
     };
     this.agents.set(agentId, agent);
@@ -214,12 +226,99 @@ export class MemStorage implements IStorage {
       totalReturn: number; sharpe: number; sortino: number;
       maxDrawdown: number; calmar: number; winRate: number;
       equity: number; cash: number;
+      strategyCode?: string; strategyLanguage?: "python" | "javascript" | "pseudocode";
+      strategyInterval?: "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
     }> = [
-      { name: "DeepSeek Trader", type: "llm_agent", desc: "LLM-powered momentum strategy using DeepSeek v3 for market regime detection and sentiment analysis across crypto Twitter.", totalReturn: 0.347, sharpe: 2.85, sortino: 3.92, maxDrawdown: 0.062, calmar: 5.6, winRate: 0.72, equity: 134700, cash: 42300 },
-      { name: "GPT-4 Momentum", type: "llm_agent", desc: "Uses GPT-4o for multi-timeframe momentum signals, combining on-chain data with technical analysis.", totalReturn: 0.289, sharpe: 2.41, sortino: 3.18, maxDrawdown: 0.078, calmar: 3.7, winRate: 0.68, equity: 128900, cash: 35200 },
-      { name: "Mean Reversion Bot v3", type: "algo_bot", desc: "Classic mean reversion strategy on Bollinger Band extremes, optimized for high-volatility crypto pairs.", totalReturn: 0.215, sharpe: 2.12, sortino: 2.67, maxDrawdown: 0.085, calmar: 2.53, winRate: 0.65, equity: 121500, cash: 51200 },
-      { name: "Qwen Arbitrage", type: "llm_agent", desc: "Qwen-2.5 model analyzing cross-exchange price discrepancies and executing statistical arbitrage.", totalReturn: 0.198, sharpe: 2.34, sortino: 3.01, maxDrawdown: 0.041, calmar: 4.83, winRate: 0.71, equity: 119800, cash: 67100 },
-      { name: "MACD CrossBot", type: "algo_bot", desc: "Multi-pair MACD crossover strategy with adaptive signal thresholds and volatility-adjusted position sizing.", totalReturn: 0.176, sharpe: 1.89, sortino: 2.34, maxDrawdown: 0.092, calmar: 1.91, winRate: 0.62, equity: 117600, cash: 38400 },
+      { name: "DeepSeek Trader", type: "llm_agent", desc: "LLM-powered momentum strategy using DeepSeek v3 for market regime detection and sentiment analysis across crypto Twitter.", totalReturn: 0.347, sharpe: 2.85, sortino: 3.92, maxDrawdown: 0.062, calmar: 5.6, winRate: 0.72, equity: 134700, cash: 42300, strategyCode: `# DeepSeek Trader Strategy
+def analyze(prices, sentiment):
+    regime = detect_market_regime(prices, window=20)
+    if regime == 'trending':
+        signal = momentum_signal(prices, fast=8, slow=21)
+    else:
+        signal = mean_reversion_signal(prices, bb_window=20)
+
+    sentiment_score = llm_analyze(
+        model="deepseek-v3",
+        data=crypto_twitter_feed(hours=4)
+    )
+    return combine_signals(signal, sentiment_score, weights=[0.6, 0.4])`, strategyLanguage: "python", strategyInterval: "15m" },
+      { name: "GPT-4 Momentum", type: "llm_agent", desc: "Uses GPT-4o for multi-timeframe momentum signals, combining on-chain data with technical analysis.", totalReturn: 0.289, sharpe: 2.41, sortino: 3.18, maxDrawdown: 0.078, calmar: 3.7, winRate: 0.68, equity: 128900, cash: 35200, strategyCode: `# GPT-4 Momentum Strategy
+def execute(market_data):
+    # Multi-timeframe momentum analysis
+    tf_1h = compute_momentum(market_data, timeframe="1h")
+    tf_4h = compute_momentum(market_data, timeframe="4h")
+    tf_1d = compute_momentum(market_data, timeframe="1d")
+
+    consensus = weighted_average([tf_1h, tf_4h, tf_1d], [0.5, 0.3, 0.2])
+
+    on_chain = fetch_on_chain_metrics(["active_addresses", "whale_txns"])
+    gpt4_analysis = gpt4o_analyze(market_data, on_chain, prompt="momentum")
+
+    if consensus > 0.7 and gpt4_analysis.confidence > 0.8:
+        return Signal(side="buy", size=kelly_criterion(consensus))
+    elif consensus < -0.7:
+        return Signal(side="sell", size=kelly_criterion(abs(consensus)))
+    return Signal(side="hold")`, strategyLanguage: "python", strategyInterval: "1h" },
+      { name: "Mean Reversion Bot v3", type: "algo_bot", desc: "Classic mean reversion strategy on Bollinger Band extremes, optimized for high-volatility crypto pairs.", totalReturn: 0.215, sharpe: 2.12, sortino: 2.67, maxDrawdown: 0.085, calmar: 2.53, winRate: 0.65, equity: 121500, cash: 51200, strategyCode: `// Mean Reversion Bot v3
+function strategy(candles, config) {
+  const bb = bollingerBands(candles.close, { period: 20, stdDev: 2.0 });
+  const rsi = computeRSI(candles.close, 14);
+  const atr = averageTrueRange(candles, 14);
+
+  // Entry: price below lower band + RSI oversold
+  if (candles.close.last() < bb.lower && rsi < 30) {
+    const size = positionSize(atr, config.riskPerTrade);
+    return { action: "buy", quantity: size, stopLoss: bb.lower - atr * 1.5 };
+  }
+
+  // Exit: price above upper band + RSI overbought
+  if (candles.close.last() > bb.upper && rsi > 70) {
+    return { action: "sell", quantity: "all", takeProfit: bb.upper + atr };
+  }
+
+  return { action: "hold" };
+}`, strategyLanguage: "javascript", strategyInterval: "5m" },
+      { name: "Qwen Arbitrage", type: "llm_agent", desc: "Qwen-2.5 model analyzing cross-exchange price discrepancies and executing statistical arbitrage.", totalReturn: 0.198, sharpe: 2.34, sortino: 3.01, maxDrawdown: 0.041, calmar: 4.83, winRate: 0.71, equity: 119800, cash: 67100, strategyCode: `# Qwen Arbitrage Strategy
+def find_arbitrage(exchanges, pairs):
+    opportunities = []
+    for pair in pairs:
+        prices = {ex: fetch_price(ex, pair) for ex in exchanges}
+        spread = max(prices.values()) - min(prices.values())
+        threshold = compute_dynamic_threshold(pair, lookback=100)
+
+        if spread > threshold:
+            buy_ex = min(prices, key=prices.get)
+            sell_ex = max(prices, key=prices.get)
+            confidence = qwen_analyze(
+                model="qwen-2.5-72b",
+                context={"spread": spread, "historical": get_spread_history(pair)}
+            )
+            if confidence > 0.75:
+                opportunities.append({
+                    "pair": pair, "buy": buy_ex, "sell": sell_ex,
+                    "expected_profit": spread - estimate_fees(buy_ex, sell_ex)
+                })
+    return sorted(opportunities, key=lambda x: x["expected_profit"], reverse=True)`, strategyLanguage: "python", strategyInterval: "1m" },
+      { name: "MACD CrossBot", type: "algo_bot", desc: "Multi-pair MACD crossover strategy with adaptive signal thresholds and volatility-adjusted position sizing.", totalReturn: 0.176, sharpe: 1.89, sortino: 2.34, maxDrawdown: 0.092, calmar: 1.91, winRate: 0.62, equity: 117600, cash: 38400, strategyCode: `# MACD CrossBot Strategy
+FOR each pair IN watchlist:
+    macd_line = EMA(close, 12) - EMA(close, 26)
+    signal_line = EMA(macd_line, 9)
+    histogram = macd_line - signal_line
+    volatility = ATR(14) / close
+
+    # Adaptive threshold based on recent volatility
+    threshold = volatility * 0.5
+
+    IF macd_line CROSSES ABOVE signal_line AND histogram > threshold:
+        size = base_size * (1 / volatility)  # Inverse vol sizing
+        ENTER LONG at market, size=size
+        SET stop_loss = entry - ATR(14) * 2.0
+        SET take_profit = entry + ATR(14) * 3.0
+
+    IF macd_line CROSSES BELOW signal_line AND histogram < -threshold:
+        CLOSE all long positions for pair
+        IF allow_shorts:
+            ENTER SHORT at market`, strategyLanguage: "pseudocode", strategyInterval: "15m" },
       { name: "Claude Catalyst", type: "llm_agent", desc: "Anthropic Claude analyzing macro catalysts, Fed communications, and crypto regulatory developments for position timing.", totalReturn: 0.163, sharpe: 1.95, sortino: 2.52, maxDrawdown: 0.071, calmar: 2.3, winRate: 0.64, equity: 116300, cash: 44700 },
       { name: "Ichimoku Cloud Scanner", type: "algo_bot", desc: "Full Ichimoku cloud analysis with Tenkan-Kijun crosses, cloud breakouts, and Chikou confirmation signals.", totalReturn: 0.142, sharpe: 1.72, sortino: 2.13, maxDrawdown: 0.098, calmar: 1.45, winRate: 0.59, equity: 114200, cash: 33800 },
       { name: "Gemini Alpha", type: "hybrid", desc: "Hybrid approach: Google Gemini for market analysis combined with traditional RSI/MACD execution engine.", totalReturn: 0.131, sharpe: 1.81, sortino: 2.28, maxDrawdown: 0.067, calmar: 1.96, winRate: 0.63, equity: 113100, cash: 52400 },
@@ -264,6 +363,11 @@ export class MemStorage implements IStorage {
         description: def.desc,
         type: def.type,
         status: "active",
+        strategyCode: def.strategyCode || null,
+        strategyLanguage: def.strategyLanguage || null,
+        strategyInterval: def.strategyInterval || null,
+        lastExecuted: def.strategyCode ? new Date("2026-03-17T08:00:00Z") : null,
+        executionCount: def.strategyCode ? Math.floor(Math.random() * 500) + 100 : 0,
         createdAt: new Date("2026-02-20"),
       };
       this.agents.set(agentId, agent);

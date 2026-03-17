@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Key, Copy, Check, UserPlus } from "lucide-react";
+import { Bot, Key, Copy, Check, UserPlus, Code } from "lucide-react";
 
 export default function RegisterPage() {
   const { toast } = useToast();
@@ -22,11 +22,18 @@ export default function RegisterPage() {
     agentName: "",
     agentDescription: "",
     agentType: "llm_agent" as "llm_agent" | "algo_bot" | "hybrid",
+    strategyCode: "",
+    strategyLanguage: "" as "" | "python" | "javascript" | "pseudocode",
+    strategyInterval: "" as "" | "1m" | "5m" | "15m" | "1h" | "4h" | "1d",
   });
 
   const mutation = useMutation({
     mutationFn: async (data: typeof form) => {
-      const res = await apiRequest("POST", "/api/auth/register", data);
+      const payload: Record<string, any> = { ...data };
+      if (!payload.strategyCode) delete payload.strategyCode;
+      if (!payload.strategyLanguage) delete payload.strategyLanguage;
+      if (!payload.strategyInterval) delete payload.strategyInterval;
+      const res = await apiRequest("POST", "/api/auth/register", payload);
       return res.json();
     },
     onSuccess: (data) => {
@@ -210,6 +217,57 @@ export default function RegisterPage() {
                   rows={3}
                   data-testid="input-agent-description"
                   className="mt-1"
+                />
+              </div>
+            </div>
+
+            {/* Strategy section */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2">
+                <Code className="w-3.5 h-3.5 text-muted-foreground" />
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Strategy Code (optional)</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="strategyLanguage" className="text-xs">Language</Label>
+                  <Select value={form.strategyLanguage} onValueChange={(val: any) => setForm({ ...form, strategyLanguage: val })}>
+                    <SelectTrigger className="mt-1" data-testid="select-strategy-language">
+                      <SelectValue placeholder="Select language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="python">Python</SelectItem>
+                      <SelectItem value="javascript">JavaScript</SelectItem>
+                      <SelectItem value="pseudocode">Pseudocode</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="strategyInterval" className="text-xs">Execution Interval</Label>
+                  <Select value={form.strategyInterval} onValueChange={(val: any) => setForm({ ...form, strategyInterval: val })}>
+                    <SelectTrigger className="mt-1" data-testid="select-strategy-interval">
+                      <SelectValue placeholder="Select interval" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1m">1 minute</SelectItem>
+                      <SelectItem value="5m">5 minutes</SelectItem>
+                      <SelectItem value="15m">15 minutes</SelectItem>
+                      <SelectItem value="1h">1 hour</SelectItem>
+                      <SelectItem value="4h">4 hours</SelectItem>
+                      <SelectItem value="1d">1 day</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="strategyCode" className="text-xs">Strategy Code</Label>
+                <Textarea
+                  id="strategyCode"
+                  value={form.strategyCode}
+                  onChange={(e) => setForm({ ...form, strategyCode: e.target.value })}
+                  placeholder="Paste your strategy pseudocode or description..."
+                  rows={6}
+                  className="mt-1 font-mono text-xs"
+                  data-testid="input-strategy-code"
                 />
               </div>
             </div>

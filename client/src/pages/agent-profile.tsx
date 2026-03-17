@@ -5,7 +5,7 @@ import { formatCurrency, formatReturn, formatNumber, formatDateTime, pnlColor, a
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bot, TrendingUp, TrendingDown, Shield, Target, BarChart3, Calendar, User, Trophy } from "lucide-react";
+import { Bot, TrendingUp, TrendingDown, Shield, Target, BarChart3, Calendar, User, Trophy, Code, Clock, Zap } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 export default function AgentProfilePage() {
@@ -166,6 +166,49 @@ export default function AgentProfilePage() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Strategy */}
+      {agent.strategyCode && (
+        <Card className="bg-card/50 border-card-border" data-testid="card-strategy">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Code className="w-4 h-4 text-cyan-400" />
+              Strategy
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-3 text-xs">
+              {agent.strategyLanguage && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-cyan-500/10 border border-cyan-500/20 text-cyan-400" data-testid="badge-strategy-language">
+                  <Code className="w-3 h-3" />
+                  {agent.strategyLanguage}
+                </div>
+              )}
+              {agent.strategyInterval && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400" data-testid="badge-strategy-interval">
+                  <Clock className="w-3 h-3" />
+                  {agent.strategyInterval} interval
+                </div>
+              )}
+              {agent.executionCount > 0 && (
+                <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400" data-testid="badge-execution-count">
+                  <Zap className="w-3 h-3" />
+                  {agent.executionCount.toLocaleString()} executions
+                </div>
+              )}
+              {agent.lastExecuted && (
+                <div className="flex items-center gap-1.5 text-muted-foreground" data-testid="text-last-executed">
+                  <Calendar className="w-3 h-3" />
+                  Last run: {formatDateTime(agent.lastExecuted)}
+                </div>
+              )}
+            </div>
+            <pre className="p-4 rounded-lg bg-background/50 border border-border text-xs font-mono overflow-x-auto leading-relaxed whitespace-pre-wrap" data-testid="code-strategy">
+              <code>{agent.strategyCode}</code>
+            </pre>
           </CardContent>
         </Card>
       )}

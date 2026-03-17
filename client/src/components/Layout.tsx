@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import {
-  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight,
+  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -10,6 +10,7 @@ const navItems = [
   { path: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { path: "/register", label: "Register Agent", icon: UserPlus },
   { path: "/docs", label: "API Docs", icon: FileText },
+  { path: "/pricing", label: "Pricing", icon: CreditCard },
 ];
 
 function AlphaArenaLogo({ collapsed }: { collapsed: boolean }) {

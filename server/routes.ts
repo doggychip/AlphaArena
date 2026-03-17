@@ -1,37 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { registerSchema, insertTradeSchema } from "@shared/schema";
+import { registerSchema, insertTradeSchema, updateStrategySchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import type { Position } from "@shared/schema";
+import { getCurrentPrices, startPriceEngine, getPriceForPair } from "./prices";
 
-// Simulated price engine
-const basePrices: Record<string, number> = {
-  "BTC/USD": 87420, "ETH/USD": 3180, "BNB/USD": 625,
-  "SOL/USD": 148, "XRP/USD": 2.45, "ADA/USD": 0.72,
-  "DOGE/USD": 0.165, "AVAX/USD": 38.5, "DOT/USD": 7.82, "LINK/USD": 16.40,
-};
-
-let currentPrices: Record<string, number> = { ...basePrices };
-let lastPriceUpdate = Date.now();
-
-function updatePrices() {
-  const now = Date.now();
-  if (now - lastPriceUpdate < 5000) return currentPrices;
-  lastPriceUpdate = now;
-
-  for (const pair of Object.keys(currentPrices)) {
-    const change = (Math.random() - 0.5) * 0.004; // ±0.2%
-    currentPrices[pair] = Math.round(currentPrices[pair] * (1 + change) * 100) / 100;
-  }
-  return currentPrices;
-}
-
-// Initialize with slight variations
-for (const pair of Object.keys(currentPrices)) {
-  const change = (Math.random() - 0.5) * 0.01;
-  currentPrices[pair] = Math.round(basePrices[pair] * (1 + change) * 100) / 100;
-}
+// Start the price engine
+startPriceEngine();
 
 export async function registerRoutes(
   httpServer: Server,
@@ -63,13 +39,8 @@ export async function registerRoutes(
 
   // === PRICES ===
   app.get("/api/prices", (_req, res) => {
-    const prices = updatePrices();
-    const priceList = Object.entries(prices).map(([pair, price]) => {
-      const base = basePrices[pair];
-      const change24h = ((price - base) / base) * 100;
-      return { pair, price, change24h: Math.round(change24h * 100) / 100 };
-    });
-    res.json(priceList);
+    const { prices, isLive } = getCurrentPrices();
+    res.json({ prices, isLive });
   });
 
   // === TRADING ===
@@ -92,10 +63,11 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Agent not found or not owned by you" });
       }
 
-      const prices = updatePrices();
-      const currentPrice = prices[pair];
+      const currentPrice = getPriceForPair(pair);
       if (!currentPrice) {
-        return res.status(400).json({ error: `Invalid pair: ${pair}. Allowed: ${Object.keys(prices).join(", ")}` });
+        const { prices } = getCurrentPrices();
+        const validPairs = prices.map(p => p.pair).join(", ");
+        return res.status(400).json({ error: `Invalid pair: ${pair}. Allowed: ${validPairs}` });
       }
 
       const comp = await storage.getActiveCompetition();
@@ -304,6 +276,40 @@ export async function registerRoutes(
 
       const snapshots = await storage.getSnapshotsByPortfolio(portfolio.id);
       res.json(snapshots);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // === AGENT STRATEGY ===
+  app.put("/api/agents/:id/strategy", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
+      if (agent.userId !== user.id) {
+        return res.status(403).json({ error: "Not authorized to update this agent" });
+      }
+
+      const parsed = updateStrategySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.errors[0].message });
+      }
+
+      const updated = await storage.updateAgentStrategy(agent.id, {
+        strategyCode: parsed.data.strategyCode,
+        strategyLanguage: parsed.data.strategyLanguage,
+        strategyInterval: parsed.data.strategyInterval,
+        lastExecuted: new Date(),
+        executionCount: (agent.executionCount ?? 0) + 1,
+      });
+
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

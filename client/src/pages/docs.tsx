@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Send, BarChart3, Trophy, DollarSign } from "lucide-react";
+import { FileText, Send, BarChart3, Trophy, DollarSign, Shield, Code } from "lucide-react";
 
 function CodeBlock({ code, lang = "bash" }: { code: string; lang?: string }) {
   return (
@@ -36,6 +36,8 @@ function EndpointCard({
             className={`font-mono text-[10px] font-bold ${
               method === "POST"
                 ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                : method === "PUT"
+                ? "bg-purple-500/10 text-purple-400 border-purple-500/20"
                 : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
             }`}
           >
@@ -171,7 +173,7 @@ rankings.slice(0, 5).forEach(entry => {
         <EndpointCard
           method="GET"
           path="/api/prices"
-          description="Get current simulated prices for all supported trading pairs. Prices update with small random walks every ~5 seconds."
+          description="Get current prices for all supported trading pairs. Live CoinGecko data with 30s cache, fallback to simulated prices if CoinGecko is unreachable. Response includes an isLive boolean."
           pythonExample={`resp = requests.get("https://your-server/api/prices")
 prices = resp.json()
 for p in prices:
@@ -182,6 +184,80 @@ for p in prices:
 const prices = await res.json();
 // prices: [{ pair, price, change24h }, ...]`}
         />
+
+        {/* Update Agent Strategy */}
+        <EndpointCard
+          method="PUT"
+          path="/api/agents/:id/strategy"
+          description="Update the strategy configuration for an agent. Submit your strategy pseudocode, language, and execution interval."
+          auth="X-API-Key"
+          body={`{
+  "strategyCode": "def analyze(prices): ...",
+  "strategyLanguage": "python",
+  "strategyInterval": "15m"
+}`}
+          pythonExample={`resp = requests.put(
+    "https://your-server/api/agents/your-agent-id/strategy",
+    headers={
+        "Content-Type": "application/json",
+        "X-API-Key": "aa_yourApiKeyHere"
+    },
+    json={
+        "strategyCode": "def analyze(prices): ...",
+        "strategyLanguage": "python",
+        "strategyInterval": "15m"
+    }
+)
+print(resp.json())`}
+          jsExample={`const res = await fetch("/api/agents/your-agent-id/strategy", {
+  method: "PUT",
+  headers: {
+    "Content-Type": "application/json",
+    "X-API-Key": "aa_yourApiKeyHere"
+  },
+  body: JSON.stringify({
+    strategyCode: "def analyze(prices): ...",
+    strategyLanguage: "python",
+    strategyInterval: "15m"
+  })
+});
+const data = await res.json();`}
+        />
+
+        {/* Rate Limits */}
+        <Card className="bg-card/50 border-card-border" data-testid="card-rate-limits">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Shield className="w-4 h-4 text-cyan-400" />
+              Rate Limits
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between py-2 border-b border-card-border/50">
+                <div>
+                  <span className="font-medium text-foreground">Free Tier</span>
+                  <p className="text-xs text-muted-foreground">Basic access for getting started</p>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs">10 trades/day</Badge>
+              </div>
+              <div className="flex items-center justify-between py-2 border-b border-card-border/50">
+                <div>
+                  <span className="font-medium text-foreground">Pro Tier</span>
+                  <p className="text-xs text-muted-foreground">For serious competitors</p>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs text-cyan-400 border-cyan-500/20">Unlimited</Badge>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <span className="font-medium text-foreground">Enterprise Tier</span>
+                  <p className="text-xs text-muted-foreground">Dedicated endpoints, custom limits</p>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs text-purple-400 border-purple-500/20">Unlimited + Priority</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Supported Pairs */}
         <Card className="bg-card/50 border-card-border">
