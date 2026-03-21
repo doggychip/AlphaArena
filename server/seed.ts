@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries, duels, agentAchievements, chatMessages,
+  dailySnapshots, leaderboardEntries, duels, agentAchievements, chatMessages, bets,
 } from "@shared/schema";
 import type { Agent } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -37,6 +37,7 @@ async function seed() {
   console.log("Seeding database...");
 
   // Clear existing data in reverse dependency order
+  await db.delete(bets);
   await db.delete(chatMessages);
   await db.delete(agentAchievements);
   await db.delete(duels);
@@ -344,7 +345,26 @@ async function seed() {
   console.log("Inserting chat messages...");
   await db.insert(chatMessages).values(chatSeed);
 
-  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements, ${chatSeed.length} chat messages`);
+  // Seed bets for current week
+  const weekNow = new Date();
+  const weekDay = weekNow.getDay();
+  const weekDiff = weekNow.getDate() - weekDay + (weekDay === 0 ? -6 : 1);
+  weekNow.setDate(weekDiff);
+  const currentWeek = weekNow.toISOString().split("T")[0];
+  const betSeed = [
+    { id: "bet-1", userId: "user-3", agentId: "agent-1", competitionId: compId, amount: 500, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 86400000) },
+    { id: "bet-2", userId: "user-5", agentId: "agent-1", competitionId: compId, amount: 300, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 72000000) },
+    { id: "bet-3", userId: "user-7", agentId: "agent-3", competitionId: compId, amount: 750, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 60000000) },
+    { id: "bet-4", userId: "user-9", agentId: "agent-2", competitionId: compId, amount: 200, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 43200000) },
+    { id: "bet-5", userId: "user-11", agentId: "agent-4", competitionId: compId, amount: 400, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 36000000) },
+    { id: "bet-6", userId: "user-13", agentId: "agent-1", competitionId: compId, amount: 600, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 21600000) },
+    { id: "bet-7", userId: "user-15", agentId: "agent-5", competitionId: compId, amount: 350, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 14400000) },
+    { id: "bet-8", userId: "user-2", agentId: "agent-3", competitionId: compId, amount: 500, weekStart: currentWeek, status: "active", payout: null, createdAt: new Date(now.getTime() - 7200000) },
+  ];
+  console.log("Inserting bets...");
+  await db.insert(bets).values(betSeed);
+
+  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements, ${chatSeed.length} chat messages, ${betSeed.length} bets`);
 }
 
 seed()

@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
-  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage
+  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet
 } from "@shared/schema";
 
 export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
@@ -62,6 +62,11 @@ export interface IStorage {
   // Chat
   getRecentMessages(competitionId: string, limit?: number): Promise<EnrichedChatMessage[]>;
   createMessage(msg: ChatMessage): Promise<ChatMessage>;
+  // Bets
+  getBetsByWeek(weekStart: string): Promise<Bet[]>;
+  getBetsByUser(userId: string): Promise<Bet[]>;
+  createBet(bet: Bet): Promise<Bet>;
+  updateBet(id: string, updates: Partial<Bet>): Promise<Bet>;
 }
 
 function generateApiKey(): string {
@@ -86,6 +91,7 @@ export class MemStorage implements IStorage {
   private tradeReactions: Map<string, TradeReaction> = new Map();
   private achievements: Map<string, AgentAchievement> = new Map();
   private chatMsgs: Map<string, ChatMessage> = new Map();
+  private betsMap: Map<string, Bet> = new Map();
 
   constructor() {
     this.seed();
@@ -291,6 +297,25 @@ export class MemStorage implements IStorage {
   async createMessage(msg: ChatMessage): Promise<ChatMessage> {
     this.chatMsgs.set(msg.id, msg);
     return msg;
+  }
+
+  // Bets
+  async getBetsByWeek(weekStart: string): Promise<Bet[]> {
+    return Array.from(this.betsMap.values()).filter(b => b.weekStart === weekStart);
+  }
+  async getBetsByUser(userId: string): Promise<Bet[]> {
+    return Array.from(this.betsMap.values()).filter(b => b.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  async createBet(bet: Bet): Promise<Bet> {
+    this.betsMap.set(bet.id, bet);
+    return bet;
+  }
+  async updateBet(id: string, updates: Partial<Bet>): Promise<Bet> {
+    const bet = this.betsMap.get(id)!;
+    const updated = { ...bet, ...updates };
+    this.betsMap.set(id, updated);
+    return updated;
   }
 
   // Register

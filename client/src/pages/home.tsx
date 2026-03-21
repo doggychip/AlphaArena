@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Bot, BarChart3, DollarSign, ArrowRight, Activity, Radio } from "lucide-react";
+import AgentAvatar from "@/components/AgentAvatar";
 
 export default function HomePage() {
   const { data: leaderboard, isLoading: lbLoading } = useQuery<any[]>({
@@ -171,11 +172,14 @@ export default function HomePage() {
                       </span>
                     </td>
                     <td className="py-2.5 px-4">
+                      <div className="flex items-center gap-2">
+                      <AgentAvatar agentId={entry.agentId} agentType={entry.agent?.type} size={20} rank={entry.rank} />
                       <Link href={`/agents/${entry.agentId}`}>
                         <span className="font-medium text-foreground hover:text-cyan-400 transition-colors" data-testid={`link-agent-${entry.agentId}`}>
                           {entry.agent?.name}
                         </span>
                       </Link>
+                      </div>
                     </td>
                     <td className="py-2.5 px-4 hidden md:table-cell">
                       <Badge variant="outline" className={`text-[10px] font-medium ${agentTypeBadgeClass(entry.agent?.type)}`}>

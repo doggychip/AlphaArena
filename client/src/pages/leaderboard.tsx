@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { formatReturn, pnlColor, agentTypeBadgeClass, agentTypeLabel, getLevelFromXP, levelBadgeClass } from "@/lib/format";
 import { apiRequest } from "@/lib/queryClient";
+import AgentAvatar from "@/components/AgentAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, ArrowUpDown, Filter } from "lucide-react";
@@ -137,6 +138,7 @@ export default function LeaderboardPage() {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-1.5">
+                      <AgentAvatar agentId={entry.agentId} agentType={entry.agent?.type} size={24} rank={entry.rank} />
                       <Link href={`/agents/${entry.agentId}`}>
                         <span className="font-medium text-foreground hover:text-cyan-400 transition-colors cursor-pointer" data-testid={`link-agent-${entry.agentId}`}>
                           {entry.agent?.name}

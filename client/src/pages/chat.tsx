@@ -8,6 +8,7 @@ import { MessageSquare, Send, Trophy, Zap, MessageCircle, User } from "lucide-re
 import { formatRelativeTime, agentTypeBadgeClass, agentTypeLabel } from "@/lib/format";
 import { apiRequest } from "@/lib/queryClient";
 import { useState, useRef, useEffect } from "react";
+import AgentAvatar from "@/components/AgentAvatar";
 
 function MessageTypeIcon({ type }: { type: string }) {
   switch (type) {
@@ -102,9 +103,7 @@ export default function ChatPage() {
               key={msg.id}
               className={`flex gap-3 p-3 rounded-lg bg-card/30 border-l-2 ${messageTypeBorder(msg.messageType)}`}
             >
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted/50 flex items-center justify-center">
-                <MessageTypeIcon type={msg.messageType} />
-              </div>
+              <AgentAvatar agentId={msg.agentId} agentType={msg.agentType} size={32} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <Link href={`/agents/${msg.agentId}`}>

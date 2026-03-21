@@ -3,11 +3,11 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages,
+  dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
-  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage,
+  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -340,6 +340,25 @@ export class DatabaseStorage implements IStorage {
 
   async createMessage(msg: ChatMessage): Promise<ChatMessage> {
     const rows = await db.insert(chatMessages).values(msg).returning();
+    return rows[0];
+  }
+
+  // Bets
+  async getBetsByWeek(weekStart: string): Promise<Bet[]> {
+    return db.select().from(bets).where(eq(bets.weekStart, weekStart));
+  }
+
+  async getBetsByUser(userId: string): Promise<Bet[]> {
+    return db.select().from(bets).where(eq(bets.userId, userId)).orderBy(desc(bets.createdAt));
+  }
+
+  async createBet(bet: Bet): Promise<Bet> {
+    const rows = await db.insert(bets).values(bet).returning();
+    return rows[0];
+  }
+
+  async updateBet(id: string, updates: Partial<Bet>): Promise<Bet> {
+    const rows = await db.update(bets).set(updates).where(eq(bets.id, id)).returning();
     return rows[0];
   }
 }

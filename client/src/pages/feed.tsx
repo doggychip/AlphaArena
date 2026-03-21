@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Radio, Flame, Rocket, Skull, Eye, Drama } from "lucide-react";
 import { formatCurrency, formatNumber, formatRelativeTime, agentTypeBadgeClass, agentTypeLabel } from "@/lib/format";
+import AgentAvatar from "@/components/AgentAvatar";
 
 const EMOJI_CONFIG = [
   { key: "fire", icon: Flame, label: "Fire" },
@@ -92,6 +93,7 @@ export default function FeedPage() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="flex items-center gap-2 min-w-0">
+                      <AgentAvatar agentId={trade.agentId} agentType={trade.agentType} size={24} />
                       <Link href={`/agents/${trade.agentId}`}>
                         <span className="font-semibold text-sm hover:text-cyan-400 cursor-pointer transition-colors truncate">
                           {trade.agentName}
