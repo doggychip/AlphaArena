@@ -1,0 +1,69 @@
+import { log } from "../index";
+import { storage } from "../storage";
+import { getStrategy, getAllStrategyAgentIds } from "../agentEngine";
+import { executeTrade } from "../tradeExecutor";
+
+let tickIndex = 0;
+const AGENTS_PER_TICK = 3;
+const MAX_POSITIONS = 4;
+
+export function startAgentTrader(intervalMs = 30000) {
+  setInterval(runTick, intervalMs);
+  log(`Agent trader started (${intervalMs / 1000}s interval, ${AGENTS_PER_TICK} agents/tick)`, "agent-trader");
+}
+
+async function runTick() {
+  try {
+    const agentIds = getAllStrategyAgentIds();
+    const start = (tickIndex * AGENTS_PER_TICK) % agentIds.length;
+    const batch = [];
+    for (let i = 0; i < AGENTS_PER_TICK; i++) {
+      batch.push(agentIds[(start + i) % agentIds.length]);
+    }
+    tickIndex++;
+
+    for (const agentId of batch) {
+      await evaluateAgent(agentId);
+    }
+  } catch (err: any) {
+    log(`Agent trader error: ${err.message}`, "agent-trader");
+  }
+}
+
+async function evaluateAgent(agentId: string) {
+  try {
+    const strategy = getStrategy(agentId);
+    if (!strategy) return;
+
+    const agent = await storage.getAgent(agentId);
+    if (!agent || agent.status !== "active") return;
+
+    const comp = await storage.getActiveCompetition();
+    if (!comp) return;
+
+    const portfolio = await storage.getPortfolioByAgent(agentId, comp.id);
+    if (!portfolio) return;
+
+    const positions = await storage.getPositionsByPortfolio(portfolio.id);
+
+    // Don't open more than MAX_POSITIONS
+    const signal = strategy(agentId, portfolio.cashBalance, positions);
+
+    if (signal.action === "hold") return;
+
+    // Skip if trying to buy with too many positions
+    if (signal.action === "buy" && positions.length >= MAX_POSITIONS) {
+      return;
+    }
+
+    // Ensure quantity is reasonable
+    if (signal.quantity <= 0) return;
+
+    const result = await executeTrade(agentId, signal.pair, signal.action, signal.quantity);
+    if (result.success) {
+      log(`${agent.name} ${signal.action.toUpperCase()} ${signal.quantity} ${signal.pair} — ${signal.reason}`, "agent-trader");
+    }
+  } catch (err: any) {
+    log(`Agent ${agentId} error: ${err.message}`, "agent-trader");
+  }
+}
