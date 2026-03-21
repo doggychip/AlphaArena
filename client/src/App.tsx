@@ -18,7 +18,9 @@ import ChatPage from "@/pages/chat";
 import BetsPage from "@/pages/bets";
 import NotFound from "@/pages/not-found";
 import TournamentsPage from "@/pages/tournaments";
+import ComparePage from "@/pages/compare";
 import { useNotifications } from "@/hooks/use-notifications";
+import { useWebSocket } from "@/hooks/use-websocket";
 import { useEffect, useState, createContext, useContext } from "react";
 
 const ThemeContext = createContext<{ dark: boolean; toggle: () => void }>({ dark: true, toggle: () => {} });
@@ -49,6 +51,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 function AppRouter() {
   useNotifications();
+  useWebSocket();
   return (
     <Layout>
       <Switch>
@@ -60,6 +63,7 @@ function AppRouter() {
         <Route path="/chat" component={ChatPage} />
         <Route path="/bets" component={BetsPage} />
         <Route path="/tournaments" component={TournamentsPage} />
+        <Route path="/compare" component={ComparePage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />

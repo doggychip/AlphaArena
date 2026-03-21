@@ -62,7 +62,16 @@ app.use((req, res, next) => {
 (async () => {
   const { storagePromise } = await import("./storage");
   await storagePromise;
+
+  // Setup auth (must be before routes)
+  const { setupAuth } = await import("./auth");
+  setupAuth(app);
+
   await registerRoutes(httpServer, app);
+
+  // Setup WebSocket
+  const { setupWebSocket } = await import("./websocket");
+  setupWebSocket(httpServer);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

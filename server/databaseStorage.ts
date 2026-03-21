@@ -4,12 +4,12 @@ import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
-  tournaments, tournamentEntries, marketEvents,
+  tournaments, tournamentEntries, marketEvents, referrals, competitions,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent,
+  Tournament, TournamentEntry, MarketEvent, Referral,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -406,5 +406,63 @@ export class DatabaseStorage implements IStorage {
   async updateMarketEvent(id: string, updates: Partial<MarketEvent>): Promise<MarketEvent> {
     const rows = await db.update(marketEvents).set(updates).where(eq(marketEvents.id, id)).returning();
     return rows[0];
+  }
+
+  // Referrals
+  async getReferralsByUser(userId: string): Promise<Referral[]> {
+    return db.select().from(referrals).where(eq(referrals.referrerId, userId));
+  }
+  async createReferral(r: Referral): Promise<Referral> {
+    const rows = await db.insert(referrals).values(r).returning();
+    return rows[0];
+  }
+  async getUserByReferralCode(code: string) {
+    const rows = await db.select().from(users).where(eq(users.referralCode, code)).limit(1);
+    return rows[0];
+  }
+  async getUserByGoogleId(googleId: string) {
+    const rows = await db.select().from(users).where(eq(users.googleId, googleId)).limit(1);
+    return rows[0];
+  }
+
+  // Custom Competitions
+  async createCompetition(c: any) {
+    const rows = await db.insert(competitions).values(c).returning();
+    return rows[0];
+  }
+  async getCompetitionsByUser(userId: string) {
+    return db.select().from(competitions).where(eq(competitions.createdBy, userId));
+  }
+
+  // Leaderboard History
+  async getLeaderboardHistory(competitionId: string) {
+    const portfolioRows = await db.select().from(portfolios).where(eq(portfolios.competitionId, competitionId));
+    const portfolioMap = new Map(portfolioRows.map(p => [p.id, p.agentId]));
+    const allSnapshots = await db.select().from(dailySnapshots);
+    const agentRows = await db.select().from(agents);
+    const agentNames = new Map(agentRows.map(a => [a.id, a.name]));
+
+    const dateMap = new Map<string, { agentId: string; score: number }[]>();
+    for (const snap of allSnapshots) {
+      const agentId = portfolioMap.get(snap.portfolioId);
+      if (!agentId) continue;
+      if (!dateMap.has(snap.date)) dateMap.set(snap.date, []);
+      dateMap.get(snap.date)!.push({ agentId, score: snap.compositeScore ?? snap.cumulativeReturn });
+    }
+
+    const history = [];
+    for (const [date, entries] of Array.from(dateMap.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      entries.sort((a, b) => b.score - a.score);
+      history.push({
+        date,
+        rankings: entries.map((e, i) => ({
+          agentId: e.agentId,
+          agentName: agentNames.get(e.agentId) ?? "Unknown",
+          rank: i + 1,
+          score: e.score,
+        })),
+      });
+    }
+    return history;
   }
 }

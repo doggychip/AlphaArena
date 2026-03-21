@@ -3,7 +3,7 @@ import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
   InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent
+  Tournament, TournamentEntry, MarketEvent, Referral
 } from "@shared/schema";
 
 export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
@@ -80,6 +80,16 @@ export interface IStorage {
   getRecentEvents(limit?: number): Promise<MarketEvent[]>;
   createMarketEvent(e: MarketEvent): Promise<MarketEvent>;
   updateMarketEvent(id: string, updates: Partial<MarketEvent>): Promise<MarketEvent>;
+  // Referrals
+  getReferralsByUser(userId: string): Promise<Referral[]>;
+  createReferral(r: Referral): Promise<Referral>;
+  getUserByReferralCode(code: string): Promise<any | undefined>;
+  getUserByGoogleId(googleId: string): Promise<any | undefined>;
+  // Custom Competitions
+  createCompetition(c: any): Promise<any>;
+  getCompetitionsByUser(userId: string): Promise<any[]>;
+  // Leaderboard History
+  getLeaderboardHistory(competitionId: string): Promise<{ date: string; rankings: { agentId: string; agentName: string; rank: number; score: number }[] }[]>;
 }
 
 function generateApiKey(): string {
@@ -108,6 +118,7 @@ export class MemStorage implements IStorage {
   private tournamentsMap: Map<string, Tournament> = new Map();
   private tournamentEntriesMap: Map<string, TournamentEntry> = new Map();
   private marketEventsMap: Map<string, MarketEvent> = new Map();
+  private referralsMap: Map<string, Referral> = new Map();
 
   constructor() {
     this.seed();
@@ -368,6 +379,45 @@ export class MemStorage implements IStorage {
     const updated = { ...e, ...updates };
     this.marketEventsMap.set(id, updated);
     return updated;
+  }
+
+  // Referrals
+  async getReferralsByUser(userId: string) { return Array.from(this.referralsMap.values()).filter(r => r.referrerId === userId); }
+  async createReferral(r: Referral) { this.referralsMap.set(r.id, r); return r; }
+  async getUserByReferralCode(code: string) { return Array.from(this.users.values()).find(u => (u as any).referralCode === code); }
+  async getUserByGoogleId(googleId: string) { return Array.from(this.users.values()).find(u => (u as any).googleId === googleId); }
+
+  // Custom Competitions
+  async createCompetition(c: any) { this.competitions.set(c.id, c); return c; }
+  async getCompetitionsByUser(userId: string) { return Array.from(this.competitions.values()).filter(c => (c as any).createdBy === userId); }
+
+  // Leaderboard History
+  async getLeaderboardHistory(competitionId: string) {
+    const portfolioMap = new Map<string, string>(); // portfolioId -> agentId
+    Array.from(this.portfolios.values()).filter(p => p.competitionId === competitionId).forEach(p => portfolioMap.set(p.id, p.agentId));
+
+    const dateMap = new Map<string, { agentId: string; score: number }[]>();
+    for (const snap of Array.from(this.snapshots.values())) {
+      const agentId = portfolioMap.get(snap.portfolioId);
+      if (!agentId) continue;
+      if (!dateMap.has(snap.date)) dateMap.set(snap.date, []);
+      dateMap.get(snap.date)!.push({ agentId, score: snap.compositeScore ?? snap.cumulativeReturn });
+    }
+
+    const history = [];
+    for (const [date, entries] of Array.from(dateMap.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
+      entries.sort((a, b) => b.score - a.score);
+      history.push({
+        date,
+        rankings: entries.map((e, i) => ({
+          agentId: e.agentId,
+          agentName: this.agents.get(e.agentId)?.name ?? "Unknown",
+          rank: i + 1,
+          score: e.score,
+        })),
+      });
+    }
+    return history;
   }
 
   // Register

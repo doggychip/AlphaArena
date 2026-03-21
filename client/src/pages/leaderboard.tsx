@@ -5,11 +5,15 @@ import { apiRequest } from "@/lib/queryClient";
 import AgentAvatar from "@/components/AgentAvatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, ArrowUpDown, Filter } from "lucide-react";
+import { Trophy, ArrowUpDown, Filter, History } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useState, useMemo } from "react";
 
 type SortField = "rank" | "totalReturn" | "sharpeRatio" | "maxDrawdown" | "winRate" | "compositeScore";
 type SortDir = "asc" | "desc";
+
+const RANK_COLORS = ["#06b6d4", "#a855f7", "#f59e0b", "#10b981", "#ef4444", "#3b82f6", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316"];
 
 export default function LeaderboardPage() {
   const { data: leaderboard, isLoading } = useQuery<any[]>({
@@ -19,6 +23,27 @@ export default function LeaderboardPage() {
   const { data: levels } = useQuery<Record<string, number>>({
     queryKey: ["/api/achievements/levels"],
   });
+
+  const { data: history } = useQuery<any[]>({
+    queryKey: ["/api/leaderboard/history"],
+  });
+
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Build chart data for top 10 agents rank over time
+  const historyChartData = useMemo(() => {
+    if (!history || !leaderboard) return [];
+    const top10Ids = leaderboard.slice(0, 10).map(e => e.agentId);
+    return history.map(day => {
+      const point: any = { date: day.date.slice(5) };
+      for (const r of day.rankings) {
+        if (top10Ids.includes(r.agentId)) {
+          point[r.agentName] = r.rank;
+        }
+      }
+      return point;
+    });
+  }, [history, leaderboard]);
 
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -179,6 +204,43 @@ export default function LeaderboardPage() {
           </table>
         </div>
       )}
+
+      {/* Rank History */}
+      <div className="mt-6">
+        <button
+          onClick={() => setShowHistory(h => !h)}
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+        >
+          <History className="w-4 h-4" />
+          {showHistory ? "Hide" : "Show"} Rank History
+        </button>
+
+        {showHistory && historyChartData.length > 1 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="w-4 h-4 text-cyan-400" /> Rank Over Time (Top 10)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={historyChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                    <YAxis reversed tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={[1, 18]} />
+                    <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                    <Legend wrapperStyle={{ fontSize: "10px" }} />
+                    {leaderboard?.slice(0, 10).map((entry: any, i: number) => (
+                      <Line key={entry.agentId} type="monotone" dataKey={entry.agent?.name} stroke={RANK_COLORS[i]} strokeWidth={1.5} dot={false} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

@@ -16,6 +16,10 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   apiKey: text("api_key").notNull().unique(),
+  googleId: text("google_id"),
+  avatarUrl: text("avatar_url"),
+  referralCode: text("referral_code"),
+  credits: real("credits").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -43,6 +47,8 @@ export const competitions = pgTable("competitions", {
   endDate: timestamp("end_date").notNull(),
   startingCapital: real("starting_capital").notNull().default(100000),
   allowedPairs: text("allowed_pairs").array().notNull(),
+  createdBy: varchar("created_by"),
+  isPrivate: integer("is_private").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -201,6 +207,15 @@ export const marketEvents = pgTable("market_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const referrals = pgTable("referrals", {
+  id: varchar("id").primaryKey(),
+  referrerId: varchar("referrer_id").notNull(),
+  referredId: varchar("referred_id").notNull(),
+  code: text("code").notNull(),
+  credits: real("credits").notNull().default(100),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -258,3 +273,4 @@ export type Bet = typeof bets.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
 export type TournamentEntry = typeof tournamentEntries.$inferSelect;
 export type MarketEvent = typeof marketEvents.$inferSelect;
+export type Referral = typeof referrals.$inferSelect;
