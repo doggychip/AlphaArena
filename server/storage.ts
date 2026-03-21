@@ -552,13 +552,18 @@ FOR each pair IN watchlist:
   }
 }
 
-let storage: IStorage;
+let storage: IStorage = new MemStorage();
 
-if (process.env.DATABASE_URL) {
-  const { DatabaseStorage } = await import("./databaseStorage");
-  storage = new DatabaseStorage();
-} else {
-  storage = new MemStorage();
+async function initStorage(): Promise<IStorage> {
+  if (process.env.DATABASE_URL) {
+    const { DatabaseStorage } = await import("./databaseStorage");
+    return new DatabaseStorage();
+  }
+  return new MemStorage();
 }
 
-export { storage };
+const storagePromise = initStorage().then((s) => {
+  storage = s;
+});
+
+export { storage, storagePromise };
