@@ -99,6 +99,8 @@ app.use((req, res, next) => {
     startAchievementCheckerJob(60000);
     const { startTrashTalkJob } = await import("./jobs/trashTalk");
     startTrashTalkJob(180000);
+    const { startBetSettlementJob } = await import("./jobs/betSettlement");
+    startBetSettlementJob(60000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

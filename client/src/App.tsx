@@ -15,6 +15,7 @@ import DuelsPage from "@/pages/duels";
 import DuelDetailPage from "@/pages/duel-detail";
 import FeedPage from "@/pages/feed";
 import ChatPage from "@/pages/chat";
+import BetsPage from "@/pages/bets";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -44,6 +45,7 @@ function AppRouter() {
         <Route path="/duels/:id" component={DuelDetailPage} />
         <Route path="/feed" component={FeedPage} />
         <Route path="/chat" component={ChatPage} />
+        <Route path="/bets" component={BetsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />

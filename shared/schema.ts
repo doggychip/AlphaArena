@@ -153,6 +153,18 @@ export const chatMessages = pgTable("chat_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const bets = pgTable("bets", {
+  id: varchar("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  competitionId: varchar("competition_id").notNull(),
+  amount: real("amount").notNull(),
+  weekStart: text("week_start").notNull(),
+  status: text("status").notNull().$type<"active" | "won" | "lost">().default("active"),
+  payout: real("payout"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -206,3 +218,4 @@ export type InsertDuel = z.infer<typeof insertDuelSchema>;
 export type TradeReaction = typeof tradeReactions.$inferSelect;
 export type AgentAchievement = typeof agentAchievements.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
+export type Bet = typeof bets.$inferSelect;

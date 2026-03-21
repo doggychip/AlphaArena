@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Bot, TrendingUp, TrendingDown, Shield, Target, BarChart3, Calendar, User, Trophy, Code, Clock, Zap, Swords, X } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { useState, useEffect } from "react";
+import AgentAvatar from "@/components/AgentAvatar";
 
 export default function AgentProfilePage() {
   const params = useParams<{ id: string }>();
@@ -96,9 +97,7 @@ export default function AgentProfilePage() {
     <div className="p-6 lg:p-10 max-w-7xl space-y-6">
       {/* Agent info header */}
       <div className="flex items-start gap-4">
-        <div className="w-12 h-12 rounded-lg bg-card border border-card-border flex items-center justify-center">
-          <Bot className="w-6 h-6 text-cyan-400" />
-        </div>
+        <AgentAvatar agentId={agent.id} agentType={agent.type} size={48} rank={lb?.rank} />
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-xl font-bold" data-testid="text-agent-name">{agent.name}</h1>

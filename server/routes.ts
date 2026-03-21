@@ -597,6 +597,105 @@ export async function registerRoutes(
     }
   });
 
+  // === BETS ===
+  function getCurrentWeekStart(): string {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Monday
+    const monday = new Date(now.setDate(diff));
+    return monday.toISOString().split("T")[0];
+  }
+
+  app.get("/api/bets/pool", async (_req, res) => {
+    try {
+      const weekStart = (_req.query.week as string) || getCurrentWeekStart();
+      const allBets = await storage.getBetsByWeek(weekStart);
+      const totalPool = allBets.reduce((s, b) => s + b.amount, 0);
+
+      // Group by agent
+      const agentPools: Record<string, { agentId: string; total: number; count: number; agentName?: string; agentType?: string }> = {};
+      for (const bet of allBets) {
+        if (!agentPools[bet.agentId]) {
+          const agent = await storage.getAgent(bet.agentId);
+          agentPools[bet.agentId] = { agentId: bet.agentId, total: 0, count: 0, agentName: agent?.name, agentType: agent?.type };
+        }
+        agentPools[bet.agentId].total += bet.amount;
+        agentPools[bet.agentId].count++;
+      }
+
+      const pool = Object.values(agentPools).map(p => ({
+        ...p,
+        odds: totalPool > 0 ? Math.round((p.total / totalPool) * 100) : 0,
+      })).sort((a, b) => b.total - a.total);
+
+      res.json({ weekStart, totalPool, totalBets: allBets.length, pool });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/bets/my", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const userBets = await storage.getBetsByUser(user.id);
+      // Enrich with agent names
+      const enriched = await Promise.all(userBets.map(async (b) => {
+        const agent = await storage.getAgent(b.agentId);
+        return { ...b, agentName: agent?.name, agentType: agent?.type };
+      }));
+      res.json(enriched);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/bets", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const { agentId, amount } = req.body;
+      if (!agentId || !amount || amount <= 0 || amount > 10000) {
+        return res.status(400).json({ error: "agentId and amount (1-10000) required" });
+      }
+
+      const agent = await storage.getAgent(agentId);
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
+
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.status(400).json({ error: "No active competition" });
+
+      const weekStart = getCurrentWeekStart();
+
+      // Check if user already bet this week
+      const userBets = await storage.getBetsByUser(user.id);
+      const existingBet = userBets.find(b => b.weekStart === weekStart && b.status === "active");
+      if (existingBet) {
+        return res.status(400).json({ error: "You already have an active bet this week" });
+      }
+
+      const bet = await storage.createBet({
+        id: randomUUID(),
+        userId: user.id,
+        agentId,
+        competitionId: comp.id,
+        amount,
+        weekStart,
+        status: "active",
+        payout: null,
+        createdAt: new Date(),
+      });
+      res.status(201).json(bet);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // === LIVE FEED ===
   const ALLOWED_EMOJIS = ["fire", "rocket", "skull", "eyes", "clown"];
 

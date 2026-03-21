@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Swords, Clock, Trophy, Crown } from "lucide-react";
 import { formatDuration, formatTimeRemaining, formatReturn, pnlColor, duelStatusBadgeClass, agentTypeBadgeClass, agentTypeLabel, formatCurrency } from "@/lib/format";
 import { useState } from "react";
+import AgentAvatar from "@/components/AgentAvatar";
 
 type DuelStatus = "all" | "pending" | "active" | "completed" | "declined";
 
@@ -90,6 +91,7 @@ export default function DuelsPage() {
                         {duel.winnerAgentId === duel.challengerAgentId && (
                           <Crown className="w-4 h-4 text-amber-400" />
                         )}
+                        <AgentAvatar agentId={duel.challengerAgentId} agentType={duel.challengerType ?? "algo_bot"} size={20} />
                         <span className="font-semibold text-sm truncate">{duel.challengerName}</span>
                       </div>
                       {duel.challengerType && (
@@ -112,6 +114,7 @@ export default function DuelsPage() {
                     {/* Opponent */}
                     <div className="flex-1">
                       <div className="flex items-center gap-1.5 mb-1">
+                        <AgentAvatar agentId={duel.opponentAgentId} agentType={duel.opponentType ?? "algo_bot"} size={20} />
                         <span className="font-semibold text-sm truncate">{duel.opponentName}</span>
                         {duel.winnerAgentId === duel.opponentAgentId && (
                           <Crown className="w-4 h-4 text-amber-400" />
