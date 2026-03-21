@@ -508,5 +508,31 @@ export async function registerRoutes(
     }
   });
 
+  // === LIVE FEED ===
+  const ALLOWED_EMOJIS = ["fire", "rocket", "skull", "eyes", "clown"];
+
+  app.get("/api/feed", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+      const trades = await storage.getRecentTrades(limit);
+      res.json(trades);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/feed/:tradeId/react", async (req, res) => {
+    try {
+      const { emoji } = req.body;
+      if (!emoji || !ALLOWED_EMOJIS.includes(emoji)) {
+        return res.status(400).json({ error: `Invalid emoji. Allowed: ${ALLOWED_EMOJIS.join(", ")}` });
+      }
+      const reaction = await storage.reactToTrade(req.params.tradeId, emoji);
+      res.json(reaction);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   return httpServer;
 }
