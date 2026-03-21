@@ -1,0 +1,6 @@
+{
+  "build_type": "node",
+  "build_command": "npm run build",
+  "start_command": "NODE_ENV=production node dist/index.cjs",
+  "node_version": "20"
+}
