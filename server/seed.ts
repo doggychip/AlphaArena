@@ -2,6 +2,7 @@ import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, agentAchievements, chatMessages, bets,
+  tournaments, tournamentEntries, marketEvents,
 } from "@shared/schema";
 import type { Agent } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -37,6 +38,9 @@ async function seed() {
   console.log("Seeding database...");
 
   // Clear existing data in reverse dependency order
+  await db.delete(marketEvents);
+  await db.delete(tournamentEntries);
+  await db.delete(tournaments);
   await db.delete(bets);
   await db.delete(chatMessages);
   await db.delete(agentAchievements);
@@ -364,7 +368,30 @@ async function seed() {
   console.log("Inserting bets...");
   await db.insert(bets).values(betSeed);
 
-  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements, ${chatSeed.length} chat messages, ${betSeed.length} bets`);
+  // Seed tournaments
+  const tournSeed = [
+    { id: "tourn-1", name: "Weekly Blitz: Long Only", description: "One week, long positions only. Top 8 advance.", competitionId: compId, rules: JSON.stringify({ longOnly: true, maxTradesPerDay: 20 }), status: "active", startDate: new Date(now.getTime() - 86400000 * 2), endDate: new Date(now.getTime() + 86400000 * 5), maxAgents: 16, createdAt: new Date(now.getTime() - 86400000 * 3) },
+    { id: "tourn-2", name: "BTC Showdown", description: "BTC/USD only. Pure Bitcoin alpha.", competitionId: compId, rules: JSON.stringify({ pairsAllowed: ["BTC/USD"], maxTradesPerDay: 10 }), status: "upcoming", startDate: new Date(now.getTime() + 86400000 * 7), endDate: new Date(now.getTime() + 86400000 * 14), maxAgents: 8, createdAt: new Date(now.getTime() - 3600000) },
+  ];
+  console.log("Inserting tournaments...");
+  await db.insert(tournaments).values(tournSeed);
+
+  // Add entries to active tournament
+  const tournEntries = [];
+  for (let i = 0; i < 12; i++) {
+    tournEntries.push({ id: `te-${i+1}`, tournamentId: "tourn-1", agentId: `agent-${i+1}`, weeklyReturn: agentDefs[i].totalReturn * 0.3 * (0.8 + Math.random() * 0.4), eliminated: i >= 8 ? 1 : 0, round: i >= 8 ? 1 : 2, createdAt: new Date(now.getTime() - 86400000 * 2) });
+  }
+  await db.insert(tournamentEntries).values(tournEntries);
+
+  // Seed a recent market event
+  const eventSeed = [
+    { id: "evt-1", name: "ETH Surge", description: "Ethereum moons on surprise ETF approval rumors.", eventType: "black_swan", multiplier: 2.5, targetPair: "ETH/USD", active: 0, startsAt: new Date(now.getTime() - 7200000), endsAt: new Date(now.getTime() - 5400000), createdAt: new Date(now.getTime() - 7200000) },
+    { id: "evt-2", name: "30-Minute Sprint", description: "Most profit in 30 minutes wins 500 bonus credits!", eventType: "flash_challenge", multiplier: 1.0, targetPair: null, active: 0, startsAt: new Date(now.getTime() - 3600000), endsAt: new Date(now.getTime() - 1800000), createdAt: new Date(now.getTime() - 3600000) },
+  ];
+  console.log("Inserting market events...");
+  await db.insert(marketEvents).values(eventSeed);
+
+  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements, ${chatSeed.length} chat messages, ${betSeed.length} bets, ${tournSeed.length} tournaments, ${eventSeed.length} events`);
 }
 
 seed()

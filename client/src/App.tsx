@@ -17,6 +17,8 @@ import FeedPage from "@/pages/feed";
 import ChatPage from "@/pages/chat";
 import BetsPage from "@/pages/bets";
 import NotFound from "@/pages/not-found";
+import TournamentsPage from "@/pages/tournaments";
+import { useNotifications } from "@/hooks/use-notifications";
 import { useEffect, useState, createContext, useContext } from "react";
 
 const ThemeContext = createContext<{ dark: boolean; toggle: () => void }>({ dark: true, toggle: () => {} });
@@ -46,6 +48,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 }
 
 function AppRouter() {
+  useNotifications();
   return (
     <Layout>
       <Switch>
@@ -56,6 +59,7 @@ function AppRouter() {
         <Route path="/feed" component={FeedPage} />
         <Route path="/chat" component={ChatPage} />
         <Route path="/bets" component={BetsPage} />
+        <Route path="/tournaments" component={TournamentsPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />

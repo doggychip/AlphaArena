@@ -101,6 +101,10 @@ app.use((req, res, next) => {
     startTrashTalkJob(180000);
     const { startBetSettlementJob } = await import("./jobs/betSettlement");
     startBetSettlementJob(60000);
+    const { startTournamentRunner } = await import("./jobs/tournamentRunner");
+    startTournamentRunner(3600000);
+    const { startChaosEngine } = await import("./jobs/chaosEngine");
+    startChaosEngine(600000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

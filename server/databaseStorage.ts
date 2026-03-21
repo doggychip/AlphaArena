@@ -4,10 +4,12 @@ import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
+  tournaments, tournamentEntries, marketEvents,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
+  Tournament, TournamentEntry, MarketEvent,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -359,6 +361,50 @@ export class DatabaseStorage implements IStorage {
 
   async updateBet(id: string, updates: Partial<Bet>): Promise<Bet> {
     const rows = await db.update(bets).set(updates).where(eq(bets.id, id)).returning();
+    return rows[0];
+  }
+
+  // Tournaments
+  async getTournaments(): Promise<Tournament[]> {
+    return db.select().from(tournaments).orderBy(desc(tournaments.startDate));
+  }
+  async getTournament(id: string): Promise<Tournament | undefined> {
+    const rows = await db.select().from(tournaments).where(eq(tournaments.id, id)).limit(1);
+    return rows[0];
+  }
+  async getTournamentEntries(tournamentId: string) {
+    const rows = await db.select({ entry: tournamentEntries, agent: agents })
+      .from(tournamentEntries)
+      .innerJoin(agents, eq(tournamentEntries.agentId, agents.id))
+      .where(eq(tournamentEntries.tournamentId, tournamentId));
+    return rows.map(r => ({ ...r.entry, agentName: r.agent.name, agentType: r.agent.type }));
+  }
+  async createTournament(t: Tournament): Promise<Tournament> {
+    const rows = await db.insert(tournaments).values(t).returning();
+    return rows[0];
+  }
+  async createTournamentEntry(e: TournamentEntry): Promise<TournamentEntry> {
+    const rows = await db.insert(tournamentEntries).values(e).returning();
+    return rows[0];
+  }
+  async updateTournamentEntry(id: string, updates: Partial<TournamentEntry>): Promise<TournamentEntry> {
+    const rows = await db.update(tournamentEntries).set(updates).where(eq(tournamentEntries.id, id)).returning();
+    return rows[0];
+  }
+
+  // Market Events
+  async getActiveEvents(): Promise<MarketEvent[]> {
+    return db.select().from(marketEvents).where(and(eq(marketEvents.active, 1)));
+  }
+  async getRecentEvents(limit = 20): Promise<MarketEvent[]> {
+    return db.select().from(marketEvents).orderBy(desc(marketEvents.createdAt)).limit(limit);
+  }
+  async createMarketEvent(e: MarketEvent): Promise<MarketEvent> {
+    const rows = await db.insert(marketEvents).values(e).returning();
+    return rows[0];
+  }
+  async updateMarketEvent(id: string, updates: Partial<MarketEvent>): Promise<MarketEvent> {
+    const rows = await db.update(marketEvents).set(updates).where(eq(marketEvents.id, id)).returning();
     return rows[0];
   }
 }
