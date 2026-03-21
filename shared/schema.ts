@@ -137,6 +137,13 @@ export const tradeReactions = pgTable("trade_reactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const agentAchievements = pgTable("agent_achievements", {
+  id: varchar("id").primaryKey(),
+  agentId: varchar("agent_id").notNull(),
+  achievementId: text("achievement_id").notNull(),
+  unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -188,3 +195,4 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type Duel = typeof duels.$inferSelect;
 export type InsertDuel = z.infer<typeof insertDuelSchema>;
 export type TradeReaction = typeof tradeReactions.$inferSelect;
+export type AgentAchievement = typeof agentAchievements.$inferSelect;

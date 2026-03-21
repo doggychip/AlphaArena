@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
-  InsertTrade, RegisterInput, Duel, TradeReaction
+  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement
 } from "@shared/schema";
 
 export type FeedTrade = Trade & { agentName: string; agentType: string; agentId: string; reactions: TradeReaction[] };
@@ -53,6 +53,10 @@ export interface IStorage {
   getRecentTrades(limit?: number): Promise<FeedTrade[]>;
   getTradeReactions(tradeId: string): Promise<TradeReaction[]>;
   reactToTrade(tradeId: string, emoji: string): Promise<TradeReaction>;
+  // Achievements
+  getAgentAchievements(agentId: string): Promise<AgentAchievement[]>;
+  awardAchievement(agentId: string, achievementId: string): Promise<AgentAchievement>;
+  hasAchievement(agentId: string, achievementId: string): Promise<boolean>;
 }
 
 function generateApiKey(): string {
@@ -75,6 +79,7 @@ export class MemStorage implements IStorage {
   private leaderboard: Map<string, LeaderboardEntry> = new Map();
   private duels: Map<string, Duel> = new Map();
   private tradeReactions: Map<string, TradeReaction> = new Map();
+  private achievements: Map<string, AgentAchievement> = new Map();
 
   constructor() {
     this.seed();
@@ -244,6 +249,26 @@ export class MemStorage implements IStorage {
     };
     this.tradeReactions.set(reaction.id, reaction);
     return reaction;
+  }
+
+  // Achievements
+  async getAgentAchievements(agentId: string): Promise<AgentAchievement[]> {
+    return Array.from(this.achievements.values()).filter(a => a.agentId === agentId);
+  }
+  async awardAchievement(agentId: string, achievementId: string): Promise<AgentAchievement> {
+    const achievement: AgentAchievement = {
+      id: randomUUID(),
+      agentId,
+      achievementId,
+      unlockedAt: new Date(),
+    };
+    this.achievements.set(achievement.id, achievement);
+    return achievement;
+  }
+  async hasAchievement(agentId: string, achievementId: string): Promise<boolean> {
+    return Array.from(this.achievements.values()).some(
+      a => a.agentId === agentId && a.achievementId === achievementId
+    );
   }
 
   // Register

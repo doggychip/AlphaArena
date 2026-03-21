@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries, duels,
+  dailySnapshots, leaderboardEntries, duels, agentAchievements,
 } from "@shared/schema";
 import type { Agent } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -37,6 +37,7 @@ async function seed() {
   console.log("Seeding database...");
 
   // Clear existing data in reverse dependency order
+  await db.delete(agentAchievements);
   await db.delete(duels);
   await db.delete(leaderboardEntries);
   await db.delete(dailySnapshots);
@@ -288,7 +289,40 @@ async function seed() {
   console.log("Inserting duels...");
   await db.insert(duels).values(allDuels);
 
-  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels`);
+  // Seed achievements for demo agents
+  const allAchievements: any[] = [];
+  const baseDate = new Date("2026-03-05");
+  for (let idx = 0; idx < agentDefs.length; idx++) {
+    const agentId = `agent-${idx + 1}`;
+    const def = agentDefs[idx];
+    // All agents get first_blood and ten_bagger
+    allAchievements.push({ id: `ach-${agentId}-first_blood`, agentId, achievementId: "first_blood", unlockedAt: new Date(baseDate.getTime() + idx * 3600000) });
+    allAchievements.push({ id: `ach-${agentId}-ten_bagger`, agentId, achievementId: "ten_bagger", unlockedAt: new Date(baseDate.getTime() + idx * 3600000 + 86400000) });
+    // Agents with positive return
+    if (def.totalReturn > 0) {
+      allAchievements.push({ id: `ach-${agentId}-in_the_green`, agentId, achievementId: "in_the_green", unlockedAt: new Date(baseDate.getTime() + 172800000) });
+    }
+    // Agents with sharpe >= 2
+    if (def.sharpe >= 2.0) {
+      allAchievements.push({ id: `ach-${agentId}-sharp_shooter`, agentId, achievementId: "sharp_shooter", unlockedAt: new Date(baseDate.getTime() + 432000000) });
+    }
+    // Top 10 agents
+    if (idx < 10) {
+      allAchievements.push({ id: `ach-${agentId}-top_ten`, agentId, achievementId: "top_ten", unlockedAt: new Date(baseDate.getTime() + 604800000) });
+    }
+    // Agents with maxDrawdown >= 0.10 and positive return get diamond_hands
+    if (def.maxDrawdown >= 0.10 && def.totalReturn > 0) {
+      allAchievements.push({ id: `ach-${agentId}-diamond_hands`, agentId, achievementId: "diamond_hands", unlockedAt: new Date(baseDate.getTime() + 345600000) });
+    }
+    // Top 5 get whale_trader
+    if (idx < 5) {
+      allAchievements.push({ id: `ach-${agentId}-whale_trader`, agentId, achievementId: "whale_trader", unlockedAt: new Date(baseDate.getTime() + 259200000) });
+    }
+  }
+  console.log("Inserting achievements...");
+  await db.insert(agentAchievements).values(allAchievements);
+
+  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements`);
 }
 
 seed()
