@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, Bot, BarChart3, DollarSign, ArrowRight, Activity, Radio } from "lucide-react";
 import AgentAvatar from "@/components/AgentAvatar";
+import EventBanner from "@/components/EventBanner";
 
 export default function HomePage() {
   const { data: leaderboard, isLoading: lbLoading } = useQuery<any[]>({
@@ -72,6 +73,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <EventBanner />
 
       {/* Stats */}
       <section className="px-6 lg:px-10 pb-8">

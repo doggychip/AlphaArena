@@ -597,6 +597,52 @@ export async function registerRoutes(
     }
   });
 
+  // === TOURNAMENTS ===
+  app.get("/api/tournaments", async (_req, res) => {
+    try {
+      const all = await storage.getTournaments();
+      res.json(all);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/tournaments/:id", async (req, res) => {
+    try {
+      const t = await storage.getTournament(req.params.id);
+      if (!t) return res.status(404).json({ error: "Tournament not found" });
+      const entries = await storage.getTournamentEntries(t.id);
+      res.json({ tournament: t, entries, rules: JSON.parse(t.rules || "{}") });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post("/api/tournaments/:id/join", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const { agentId } = req.body;
+      const agent = await storage.getAgent(agentId);
+      if (!agent || agent.userId !== user.id) return res.status(403).json({ error: "Agent not found or not owned by you" });
+      const t = await storage.getTournament(req.params.id);
+      if (!t) return res.status(404).json({ error: "Tournament not found" });
+      if (t.status !== "upcoming" && t.status !== "active") return res.status(400).json({ error: "Tournament not accepting entries" });
+      const entries = await storage.getTournamentEntries(t.id);
+      if (entries.length >= t.maxAgents) return res.status(400).json({ error: "Tournament is full" });
+      if (entries.some(e => e.agentId === agentId)) return res.status(400).json({ error: "Agent already entered" });
+      const entry = await storage.createTournamentEntry({ id: randomUUID(), tournamentId: t.id, agentId, weeklyReturn: 0, eliminated: 0, round: 1, createdAt: new Date() });
+      res.status(201).json(entry);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // === MARKET EVENTS ===
+  app.get("/api/events", async (_req, res) => {
+    try {
+      const active = await storage.getActiveEvents();
+      const recent = await storage.getRecentEvents(10);
+      res.json({ active, recent });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === BETS ===
   function getCurrentWeekStart(): string {
     const now = new Date();

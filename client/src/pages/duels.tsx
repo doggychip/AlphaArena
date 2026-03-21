@@ -1,14 +1,77 @@
 import { useQuery } from "@tanstack/react-query";
+// useMutation and useQueryClient imported below
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Swords, Clock, Trophy, Crown } from "lucide-react";
 import { formatDuration, formatTimeRemaining, formatReturn, pnlColor, duelStatusBadgeClass, agentTypeBadgeClass, agentTypeLabel, formatCurrency } from "@/lib/format";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Check, X } from "lucide-react";
 import AgentAvatar from "@/components/AgentAvatar";
 
 type DuelStatus = "all" | "pending" | "active" | "completed" | "declined";
+
+function DuelActions({ duelId }: { duelId: string }) {
+  const queryClient = useQueryClient();
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("aa_api_key") ?? "");
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    if (apiKey) localStorage.setItem("aa_api_key", apiKey);
+  }, [apiKey]);
+
+  const accept = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/duels/${duelId}/accept`, { method: "POST", headers: { "X-API-Key": apiKey } });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/duels"] }),
+  });
+
+  const decline = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/duels/${duelId}/decline`, { method: "POST", headers: { "X-API-Key": apiKey } });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error); }
+      return res.json();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/duels"] }),
+  });
+
+  if (!show) {
+    return (
+      <div className="mt-3 pt-3 border-t border-border/50">
+        <button onClick={(e) => { e.preventDefault(); setShow(true); }} className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors">
+          Respond to challenge
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/50 space-y-2" onClick={(e) => e.preventDefault()}>
+      <input
+        type="text" placeholder="Your API Key (aa_...)" value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        className="w-full text-xs bg-muted/50 border border-border rounded px-2 py-1.5 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500/50"
+      />
+      {(accept.error || decline.error) && (
+        <p className="text-[10px] text-red-400">{((accept.error || decline.error) as Error)?.message}</p>
+      )}
+      <div className="flex gap-2">
+        <Button size="sm" onClick={() => accept.mutate()} disabled={!apiKey || accept.isPending} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs h-7">
+          <Check className="w-3 h-3 mr-1" /> Accept
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => decline.mutate()} disabled={!apiKey || decline.isPending} className="flex-1 border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-7">
+          <X className="w-3 h-3 mr-1" /> Decline
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function DuelsPage() {
   const [statusFilter, setStatusFilter] = useState<DuelStatus>("all");
@@ -140,6 +203,7 @@ export default function DuelsPage() {
                       <span className="text-xs font-mono text-cyan-400">{formatTimeRemaining(duel.endsAt)}</span>
                     </div>
                   )}
+                  {duel.status === "pending" && <DuelActions duelId={duel.id} />}
                 </CardContent>
               </Card>
             </Link>

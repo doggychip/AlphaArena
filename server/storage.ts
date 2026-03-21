@@ -2,7 +2,8 @@ import { randomUUID } from "crypto";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
-  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet
+  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
+  Tournament, TournamentEntry, MarketEvent
 } from "@shared/schema";
 
 export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
@@ -67,6 +68,18 @@ export interface IStorage {
   getBetsByUser(userId: string): Promise<Bet[]>;
   createBet(bet: Bet): Promise<Bet>;
   updateBet(id: string, updates: Partial<Bet>): Promise<Bet>;
+  // Tournaments
+  getTournaments(): Promise<Tournament[]>;
+  getTournament(id: string): Promise<Tournament | undefined>;
+  getTournamentEntries(tournamentId: string): Promise<(TournamentEntry & { agentName: string; agentType: string })[]>;
+  createTournament(t: Tournament): Promise<Tournament>;
+  createTournamentEntry(e: TournamentEntry): Promise<TournamentEntry>;
+  updateTournamentEntry(id: string, updates: Partial<TournamentEntry>): Promise<TournamentEntry>;
+  // Market Events
+  getActiveEvents(): Promise<MarketEvent[]>;
+  getRecentEvents(limit?: number): Promise<MarketEvent[]>;
+  createMarketEvent(e: MarketEvent): Promise<MarketEvent>;
+  updateMarketEvent(id: string, updates: Partial<MarketEvent>): Promise<MarketEvent>;
 }
 
 function generateApiKey(): string {
@@ -92,6 +105,9 @@ export class MemStorage implements IStorage {
   private achievements: Map<string, AgentAchievement> = new Map();
   private chatMsgs: Map<string, ChatMessage> = new Map();
   private betsMap: Map<string, Bet> = new Map();
+  private tournamentsMap: Map<string, Tournament> = new Map();
+  private tournamentEntriesMap: Map<string, TournamentEntry> = new Map();
+  private marketEventsMap: Map<string, MarketEvent> = new Map();
 
   constructor() {
     this.seed();
@@ -315,6 +331,42 @@ export class MemStorage implements IStorage {
     const bet = this.betsMap.get(id)!;
     const updated = { ...bet, ...updates };
     this.betsMap.set(id, updated);
+    return updated;
+  }
+
+  // Tournaments
+  async getTournaments() { return Array.from(this.tournamentsMap.values()); }
+  async getTournament(id: string) { return this.tournamentsMap.get(id); }
+  async getTournamentEntries(tournamentId: string) {
+    const entries = Array.from(this.tournamentEntriesMap.values()).filter(e => e.tournamentId === tournamentId);
+    return entries.map(e => {
+      const agent = this.agents.get(e.agentId);
+      return { ...e, agentName: agent?.name ?? "Unknown", agentType: agent?.type ?? "algo_bot" };
+    });
+  }
+  async createTournament(t: Tournament) { this.tournamentsMap.set(t.id, t); return t; }
+  async createTournamentEntry(e: TournamentEntry) { this.tournamentEntriesMap.set(e.id, e); return e; }
+  async updateTournamentEntry(id: string, updates: Partial<TournamentEntry>) {
+    const e = this.tournamentEntriesMap.get(id)!;
+    const updated = { ...e, ...updates };
+    this.tournamentEntriesMap.set(id, updated);
+    return updated;
+  }
+
+  // Market Events
+  async getActiveEvents() {
+    return Array.from(this.marketEventsMap.values()).filter(e => e.active === 1 && new Date(e.endsAt) > new Date());
+  }
+  async getRecentEvents(limit = 20) {
+    return Array.from(this.marketEventsMap.values())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+  }
+  async createMarketEvent(e: MarketEvent) { this.marketEventsMap.set(e.id, e); return e; }
+  async updateMarketEvent(id: string, updates: Partial<MarketEvent>) {
+    const e = this.marketEventsMap.get(id)!;
+    const updated = { ...e, ...updates };
+    this.marketEventsMap.set(id, updated);
     return updated;
   }
 

@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import {
-  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X,
+  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X, Crown, Menu,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "@/App";
@@ -14,6 +14,7 @@ const navItems = [
   { path: "/feed", label: "Live Feed", icon: Radio },
   { path: "/chat", label: "Chat", icon: MessageSquare },
   { path: "/bets", label: "Bets", icon: Coins },
+  { path: "/tournaments", label: "Tournaments", icon: Crown },
   { path: "/register", label: "Register Agent", icon: UserPlus },
   { path: "/docs", label: "API Docs", icon: FileText },
   { path: "/pricing", label: "Pricing", icon: CreditCard },
@@ -41,6 +42,7 @@ function AlphaArenaLogo({ collapsed }: { collapsed: boolean }) {
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { dark, toggle } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -60,6 +62,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (searchOpen && searchRef.current) searchRef.current.focus();
   }, [searchOpen]);
 
+  // Close mobile sidebar on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -74,10 +81,25 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-background">
+      {/* Mobile top bar */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-12 bg-sidebar border-b border-sidebar-border flex items-center px-3 gap-3">
+        <button onClick={() => setMobileOpen(o => !o)} className="text-muted-foreground hover:text-foreground">
+          <Menu className="w-5 h-5" />
+        </button>
+        <AlphaArenaLogo collapsed={false} />
+      </div>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setMobileOpen(false)} />
+      )}
+
       {/* Sidebar */}
       <aside className={`
         ${collapsed ? "w-16" : "w-56"} flex-shrink-0 flex flex-col
         bg-sidebar border-r border-sidebar-border transition-all duration-200
+        fixed md:static inset-y-0 left-0 z-50
+        ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
       `}>
         <div className={`h-14 flex items-center ${collapsed ? "justify-center" : "px-4"} border-b border-sidebar-border`}>
           <AlphaArenaLogo collapsed={collapsed} />
@@ -140,7 +162,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto pt-12 md:pt-0">
         <div className="min-h-full animate-in fade-in duration-200">
           {children}
         </div>

@@ -165,6 +165,42 @@ export const bets = pgTable("bets", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tournaments = pgTable("tournaments", {
+  id: varchar("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  competitionId: varchar("competition_id").notNull(),
+  rules: text("rules").notNull().default("{}"),
+  status: text("status").notNull().$type<"upcoming" | "active" | "completed">().default("upcoming"),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date").notNull(),
+  maxAgents: integer("max_agents").notNull().default(16),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentEntries = pgTable("tournament_entries", {
+  id: varchar("id").primaryKey(),
+  tournamentId: varchar("tournament_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  weeklyReturn: real("weekly_return").default(0),
+  eliminated: integer("eliminated").notNull().default(0),
+  round: integer("round").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const marketEvents = pgTable("market_events", {
+  id: varchar("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  eventType: text("event_type").notNull().$type<"black_swan" | "flash_challenge" | "mystery_pair">(),
+  multiplier: real("multiplier").default(1),
+  targetPair: text("target_pair"),
+  active: integer("active").notNull().default(1),
+  startsAt: timestamp("starts_at").notNull(),
+  endsAt: timestamp("ends_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -219,3 +255,6 @@ export type TradeReaction = typeof tradeReactions.$inferSelect;
 export type AgentAchievement = typeof agentAchievements.$inferSelect;
 export type ChatMessage = typeof chatMessages.$inferSelect;
 export type Bet = typeof bets.$inferSelect;
+export type Tournament = typeof tournaments.$inferSelect;
+export type TournamentEntry = typeof tournamentEntries.$inferSelect;
+export type MarketEvent = typeof marketEvents.$inferSelect;
