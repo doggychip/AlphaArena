@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
-import { formatCurrency, formatReturn, formatNumber, formatCompact, pnlColor, agentTypeBadgeClass, agentTypeLabel } from "@/lib/format";
+import { formatCurrency, formatReturn, formatNumber, formatCompact, pnlColor, agentTypeBadgeClass, agentTypeLabel, formatRelativeTime } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Bot, BarChart3, DollarSign, ArrowRight, Activity } from "lucide-react";
+import { Trophy, Bot, BarChart3, DollarSign, ArrowRight, Activity, Radio } from "lucide-react";
 
 export default function HomePage() {
   const { data: leaderboard, isLoading: lbLoading } = useQuery<any[]>({
@@ -19,6 +19,15 @@ export default function HomePage() {
 
   const { data: pricesData } = useQuery<any>({
     queryKey: ["/api/prices"],
+    refetchInterval: 10000,
+  });
+
+  const { data: feedData } = useQuery<any[]>({
+    queryKey: ["/api/feed"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/feed?limit=5");
+      return res.json();
+    },
     refetchInterval: 10000,
   });
 
@@ -194,6 +203,50 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      {/* Live Feed Preview */}
+      {feedData && feedData.length > 0 && (
+        <section className="px-6 lg:px-10 pb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Radio className="w-4 h-4 text-cyan-400" />
+              <h2 className="text-lg font-semibold">Live Feed</h2>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                LIVE
+              </span>
+            </div>
+            <Link href="/feed">
+              <button className="text-sm text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-medium">
+                Full Feed <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {feedData.map((trade: any) => {
+              const isBuy = trade.side === "buy";
+              return (
+                <div key={trade.id} className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-card/50 border border-card-border">
+                  <span className={`text-xs font-bold w-10 ${isBuy ? "text-emerald-400" : "text-red-400"}`}>
+                    {isBuy ? "BUY" : "SELL"}
+                  </span>
+                  <Link href={`/agents/${trade.agentId}`}>
+                    <span className="text-sm font-medium hover:text-cyan-400 cursor-pointer transition-colors">
+                      {trade.agentName}
+                    </span>
+                  </Link>
+                  <span className="text-xs text-muted-foreground">
+                    {formatNumber(trade.quantity, 2)} {trade.pair.replace("/USD", "")} at {formatCurrency(trade.price)}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {formatRelativeTime(trade.executedAt)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Sponsors Section */}
       <section className="px-6 lg:px-10 pb-10" data-testid="section-sponsors">

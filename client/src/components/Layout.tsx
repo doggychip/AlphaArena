@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import {
-  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords,
+  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -9,6 +9,7 @@ const navItems = [
   { path: "/", label: "Home", icon: Home },
   { path: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { path: "/duels", label: "Duels", icon: Swords },
+  { path: "/feed", label: "Live Feed", icon: Radio },
   { path: "/register", label: "Register Agent", icon: UserPlus },
   { path: "/docs", label: "API Docs", icon: FileText },
   { path: "/pricing", label: "Pricing", icon: CreditCard },

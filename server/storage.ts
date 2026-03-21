@@ -2,8 +2,10 @@ import { randomUUID } from "crypto";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
-  InsertTrade, RegisterInput, Duel
+  InsertTrade, RegisterInput, Duel, TradeReaction
 } from "@shared/schema";
+
+export type FeedTrade = Trade & { agentName: string; agentType: string; agentId: string; reactions: TradeReaction[] };
 
 export interface IStorage {
   // Users
@@ -47,6 +49,10 @@ export interface IStorage {
   getAllDuels(): Promise<Duel[]>;
   createDuel(duel: Duel): Promise<Duel>;
   updateDuel(id: string, updates: Partial<Duel>): Promise<Duel>;
+  // Feed
+  getRecentTrades(limit?: number): Promise<FeedTrade[]>;
+  getTradeReactions(tradeId: string): Promise<TradeReaction[]>;
+  reactToTrade(tradeId: string, emoji: string): Promise<TradeReaction>;
 }
 
 function generateApiKey(): string {
@@ -68,6 +74,7 @@ export class MemStorage implements IStorage {
   private snapshots: Map<string, DailySnapshot> = new Map();
   private leaderboard: Map<string, LeaderboardEntry> = new Map();
   private duels: Map<string, Duel> = new Map();
+  private tradeReactions: Map<string, TradeReaction> = new Map();
 
   constructor() {
     this.seed();
@@ -193,6 +200,50 @@ export class MemStorage implements IStorage {
     const updated = { ...duel, ...updates };
     this.duels.set(id, updated);
     return updated;
+  }
+
+  // Feed
+  async getRecentTrades(limit = 50): Promise<FeedTrade[]> {
+    const allTrades = Array.from(this.trades.values())
+      .sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime())
+      .slice(0, limit);
+
+    return allTrades.map(trade => {
+      const portfolio = Array.from(this.portfolios.values()).find(p => p.id === trade.portfolioId);
+      const agent = portfolio ? this.agents.get(portfolio.agentId) : undefined;
+      const reactions = Array.from(this.tradeReactions.values()).filter(r => r.tradeId === trade.id);
+      return {
+        ...trade,
+        agentName: agent?.name ?? "Unknown",
+        agentType: agent?.type ?? "algo_bot",
+        agentId: agent?.id ?? "",
+        reactions,
+      };
+    });
+  }
+
+  async getTradeReactions(tradeId: string): Promise<TradeReaction[]> {
+    return Array.from(this.tradeReactions.values()).filter(r => r.tradeId === tradeId);
+  }
+
+  async reactToTrade(tradeId: string, emoji: string): Promise<TradeReaction> {
+    const existing = Array.from(this.tradeReactions.values()).find(
+      r => r.tradeId === tradeId && r.emoji === emoji
+    );
+    if (existing) {
+      const updated = { ...existing, count: existing.count + 1 };
+      this.tradeReactions.set(existing.id, updated);
+      return updated;
+    }
+    const reaction: TradeReaction = {
+      id: randomUUID(),
+      tradeId,
+      emoji,
+      count: 1,
+      createdAt: new Date(),
+    };
+    this.tradeReactions.set(reaction.id, reaction);
+    return reaction;
   }
 
   // Register

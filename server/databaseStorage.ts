@@ -3,13 +3,13 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries, duels,
+  dailySnapshots, leaderboardEntries, duels, tradeReactions,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
-  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel,
+  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction,
 } from "@shared/schema";
-import type { IStorage } from "./storage";
+import type { IStorage, FeedTrade } from "./storage";
 
 function generateApiKey(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -242,6 +242,59 @@ export class DatabaseStorage implements IStorage {
 
   async updateDuel(id: string, updates: Partial<Duel>): Promise<Duel> {
     const rows = await db.update(duels).set(updates).where(eq(duels.id, id)).returning();
+    return rows[0];
+  }
+
+  // Feed
+  async getRecentTrades(limit = 50): Promise<FeedTrade[]> {
+    const rows = await db.select({
+      trade: trades,
+      portfolio: portfolios,
+      agent: agents,
+    })
+      .from(trades)
+      .innerJoin(portfolios, eq(trades.portfolioId, portfolios.id))
+      .innerJoin(agents, eq(portfolios.agentId, agents.id))
+      .orderBy(desc(trades.executedAt))
+      .limit(limit);
+
+    const result: FeedTrade[] = [];
+    for (const row of rows) {
+      const reactions = await db.select().from(tradeReactions).where(eq(tradeReactions.tradeId, row.trade.id));
+      result.push({
+        ...row.trade,
+        agentName: row.agent.name,
+        agentType: row.agent.type,
+        agentId: row.agent.id,
+        reactions,
+      });
+    }
+    return result;
+  }
+
+  async getTradeReactions(tradeId: string): Promise<TradeReaction[]> {
+    return db.select().from(tradeReactions).where(eq(tradeReactions.tradeId, tradeId));
+  }
+
+  async reactToTrade(tradeId: string, emoji: string): Promise<TradeReaction> {
+    const existing = await db.select().from(tradeReactions)
+      .where(and(eq(tradeReactions.tradeId, tradeId), eq(tradeReactions.emoji, emoji)))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const rows = await db.update(tradeReactions)
+        .set({ count: existing[0].count + 1 })
+        .where(eq(tradeReactions.id, existing[0].id))
+        .returning();
+      return rows[0];
+    }
+
+    const rows = await db.insert(tradeReactions).values({
+      id: randomUUID(),
+      tradeId,
+      emoji,
+      count: 1,
+    }).returning();
     return rows[0];
   }
 }
