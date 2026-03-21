@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import {
-  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X, Crown, Menu,
+  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X, Crown, Menu, GitCompare, LogIn,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "@/App";
@@ -15,6 +15,7 @@ const navItems = [
   { path: "/chat", label: "Chat", icon: MessageSquare },
   { path: "/bets", label: "Bets", icon: Coins },
   { path: "/tournaments", label: "Tournaments", icon: Crown },
+  { path: "/compare", label: "Compare", icon: GitCompare },
   { path: "/register", label: "Register Agent", icon: UserPlus },
   { path: "/docs", label: "API Docs", icon: FileText },
   { path: "/pricing", label: "Pricing", icon: CreditCard },
@@ -131,6 +132,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="px-2 pb-3 space-y-1">
+          <a
+            href="/api/auth/google"
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+          >
+            <LogIn className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span>Sign in with Google</span>}
+          </a>
           <button
             onClick={() => setSearchOpen(true)}
             className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"

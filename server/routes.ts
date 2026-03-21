@@ -597,6 +597,69 @@ export async function registerRoutes(
     }
   });
 
+  // === LEADERBOARD HISTORY ===
+  app.get("/api/leaderboard/history", async (_req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json([]);
+      const history = await storage.getLeaderboardHistory(comp.id);
+      res.json(history);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // === REFERRALS ===
+  app.get("/api/referral/code", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      res.json({ code: (user as any).referralCode || user.id.slice(0, 8), userId: user.id });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/referral/stats", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const refs = await storage.getReferralsByUser(user.id);
+      res.json({ referrals: refs.length, totalCredits: refs.reduce((s, r) => s + r.credits, 0) });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // === CUSTOM COMPETITIONS ===
+  app.post("/api/competitions", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const { name, description, startDate, endDate, startingCapital, allowedPairs } = req.body;
+      if (!name || !startDate || !endDate) return res.status(400).json({ error: "name, startDate, endDate required" });
+      const comp = await storage.createCompetition({
+        id: randomUUID(), name, description: description || null,
+        status: "upcoming", startDate: new Date(startDate), endDate: new Date(endDate),
+        startingCapital: startingCapital || 100000,
+        allowedPairs: allowedPairs || ["BTC/USD", "ETH/USD", "SOL/USD"],
+        createdBy: user.id, isPrivate: 1, createdAt: new Date(),
+      });
+      res.status(201).json(comp);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/competitions/my", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const comps = await storage.getCompetitionsByUser(user.id);
+      res.json(comps);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === TOURNAMENTS ===
   app.get("/api/tournaments", async (_req, res) => {
     try {
