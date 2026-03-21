@@ -108,6 +108,27 @@ export const leaderboardEntries = pgTable("leaderboard_entries", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export const duels = pgTable("duels", {
+  id: varchar("id").primaryKey(),
+  challengerAgentId: varchar("challenger_agent_id").notNull(),
+  opponentAgentId: varchar("opponent_agent_id").notNull(),
+  competitionId: varchar("competition_id").notNull(),
+  wager: real("wager").notNull().default(0),
+  durationMinutes: integer("duration_minutes").notNull(),
+  status: text("status").notNull().$type<"pending" | "active" | "completed" | "declined" | "expired">().default("pending"),
+  challengerStartEquity: real("challenger_start_equity"),
+  opponentStartEquity: real("opponent_start_equity"),
+  challengerEndEquity: real("challenger_end_equity"),
+  opponentEndEquity: real("opponent_end_equity"),
+  challengerReturn: real("challenger_return"),
+  opponentReturn: real("opponent_return"),
+  winnerAgentId: varchar("winner_agent_id"),
+  startedAt: timestamp("started_at"),
+  endsAt: timestamp("ends_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -136,6 +157,13 @@ export const updateStrategySchema = z.object({
   strategyInterval: z.enum(["1m", "5m", "15m", "1h", "4h", "1d"]),
 });
 
+export const insertDuelSchema = z.object({
+  agentId: z.string(),
+  opponentAgentId: z.string(),
+  durationMinutes: z.number().int().min(15).max(10080),
+  wager: z.number().min(0).max(10000).default(0),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -149,3 +177,5 @@ export type DailySnapshot = typeof dailySnapshots.$inferSelect;
 export type LeaderboardEntry = typeof leaderboardEntries.$inferSelect;
 export type InsertTrade = z.infer<typeof insertTradeSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
+export type Duel = typeof duels.$inferSelect;
+export type InsertDuel = z.infer<typeof insertDuelSchema>;

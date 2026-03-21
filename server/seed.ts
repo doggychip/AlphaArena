@@ -1,7 +1,7 @@
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries,
+  dailySnapshots, leaderboardEntries, duels,
 } from "@shared/schema";
 import type { Agent } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -37,6 +37,7 @@ async function seed() {
   console.log("Seeding database...");
 
   // Clear existing data in reverse dependency order
+  await db.delete(duels);
   await db.delete(leaderboardEntries);
   await db.delete(dailySnapshots);
   await db.delete(trades);
@@ -273,7 +274,21 @@ async function seed() {
   console.log("Inserting leaderboard...");
   await db.insert(leaderboardEntries).values(allLeaderboard);
 
-  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries`);
+  // Seed duels
+  const now = new Date();
+  const allDuels = [
+    { id: "duel-1", challengerAgentId: "agent-1", opponentAgentId: "agent-2", competitionId: compId, wager: 500, durationMinutes: 240, status: "completed", challengerStartEquity: 130000, opponentStartEquity: 125000, challengerEndEquity: 131200, opponentEndEquity: 124500, challengerReturn: 0.0092, opponentReturn: -0.004, winnerAgentId: "agent-1", startedAt: new Date("2026-03-15T10:00:00Z"), endsAt: new Date("2026-03-15T14:00:00Z"), createdAt: new Date("2026-03-15T09:30:00Z"), resolvedAt: new Date("2026-03-15T14:00:00Z") },
+    { id: "duel-2", challengerAgentId: "agent-3", opponentAgentId: "agent-5", competitionId: compId, wager: 0, durationMinutes: 1440, status: "completed", challengerStartEquity: 120000, opponentStartEquity: 116000, challengerEndEquity: 121800, opponentEndEquity: 117400, challengerReturn: 0.015, opponentReturn: 0.012, winnerAgentId: "agent-3", startedAt: new Date("2026-03-16T00:00:00Z"), endsAt: new Date("2026-03-17T00:00:00Z"), createdAt: new Date("2026-03-15T22:00:00Z"), resolvedAt: new Date("2026-03-17T00:00:00Z") },
+    { id: "duel-3", challengerAgentId: "agent-4", opponentAgentId: "agent-6", competitionId: compId, wager: 200, durationMinutes: 60, status: "active", challengerStartEquity: 119800, opponentStartEquity: 116300, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: now, endsAt: new Date(now.getTime() + 3600000), createdAt: new Date(now.getTime() - 600000), resolvedAt: null },
+    { id: "duel-4", challengerAgentId: "agent-8", opponentAgentId: "agent-10", competitionId: compId, wager: 100, durationMinutes: 240, status: "active", challengerStartEquity: 113100, opponentStartEquity: 109400, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: new Date(now.getTime() - 7200000), endsAt: new Date(now.getTime() + 1800000), createdAt: new Date(now.getTime() - 7800000), resolvedAt: null },
+    { id: "duel-5", challengerAgentId: "agent-7", opponentAgentId: "agent-9", competitionId: compId, wager: 300, durationMinutes: 480, status: "pending", challengerStartEquity: null, opponentStartEquity: null, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: null, endsAt: null, createdAt: new Date(now.getTime() - 3600000), resolvedAt: null },
+    { id: "duel-6", challengerAgentId: "agent-1", opponentAgentId: "agent-4", competitionId: compId, wager: 1000, durationMinutes: 1440, status: "pending", challengerStartEquity: null, opponentStartEquity: null, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: null, endsAt: null, createdAt: new Date(now.getTime() - 1800000), resolvedAt: null },
+    { id: "duel-7", challengerAgentId: "agent-11", opponentAgentId: "agent-2", competitionId: compId, wager: 250, durationMinutes: 60, status: "declined", challengerStartEquity: null, opponentStartEquity: null, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: null, endsAt: null, createdAt: new Date("2026-03-14T12:00:00Z"), resolvedAt: null },
+  ];
+  console.log("Inserting duels...");
+  await db.insert(duels).values(allDuels);
+
+  console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels`);
 }
 
 seed()

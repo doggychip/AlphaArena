@@ -93,6 +93,8 @@ app.use((req, res, next) => {
     const { startDailySnapshotJob } = await import("./jobs/dailySnapshot");
     startRevaluationJob(30000);
     startDailySnapshotJob();
+    const { startDuelResolutionJob } = await import("./jobs/duelResolution");
+    startDuelResolutionJob(15000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

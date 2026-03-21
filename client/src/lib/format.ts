@@ -77,6 +77,34 @@ export function agentTypeLabel(type: string): string {
   }
 }
 
+export function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1440) return `${Math.round(minutes / 60)}h`;
+  return `${Math.round(minutes / 1440)}d`;
+}
+
+export function formatTimeRemaining(endsAt: Date | string): string {
+  const end = typeof endsAt === "string" ? new Date(endsAt) : endsAt;
+  const diff = end.getTime() - Date.now();
+  if (diff <= 0) return "Ended";
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  if (hours > 24) return `${Math.floor(hours / 24)}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+export function duelStatusBadgeClass(status: string): string {
+  switch (status) {
+    case "pending": return "bg-amber-500/15 text-amber-400 border-amber-500/20";
+    case "active": return "bg-cyan-500/15 text-cyan-400 border-cyan-500/20";
+    case "completed": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/20";
+    case "declined": return "bg-muted text-muted-foreground border-muted";
+    case "expired": return "bg-red-500/15 text-red-400 border-red-500/20";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
+
 export function priceChangeColor(value: number): string {
   if (value > 0) return "text-emerald-400";
   if (value < 0) return "text-red-400";

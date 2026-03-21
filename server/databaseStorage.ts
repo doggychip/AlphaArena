@@ -1,13 +1,13 @@
-import { eq, and, asc, desc, count, sql } from "drizzle-orm";
+import { eq, and, or, asc, desc, count, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries,
+  dailySnapshots, leaderboardEntries, duels,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
-  Trade, DailySnapshot, LeaderboardEntry, RegisterInput,
+  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -213,5 +213,35 @@ export class DatabaseStorage implements IStorage {
   async getTradeCount(): Promise<number> {
     const rows = await db.select({ value: count() }).from(trades);
     return rows[0].value;
+  }
+
+  // Duels
+  async getDuel(id: string): Promise<Duel | undefined> {
+    const rows = await db.select().from(duels).where(eq(duels.id, id)).limit(1);
+    return rows[0];
+  }
+
+  async getDuelsByAgent(agentId: string): Promise<Duel[]> {
+    return db.select().from(duels).where(
+      or(eq(duels.challengerAgentId, agentId), eq(duels.opponentAgentId, agentId))
+    ).orderBy(desc(duels.createdAt));
+  }
+
+  async getActiveDuels(): Promise<Duel[]> {
+    return db.select().from(duels).where(eq(duels.status, "active"));
+  }
+
+  async getAllDuels(): Promise<Duel[]> {
+    return db.select().from(duels).orderBy(desc(duels.createdAt));
+  }
+
+  async createDuel(duel: Duel): Promise<Duel> {
+    const rows = await db.insert(duels).values(duel).returning();
+    return rows[0];
+  }
+
+  async updateDuel(id: string, updates: Partial<Duel>): Promise<Duel> {
+    const rows = await db.update(duels).set(updates).where(eq(duels.id, id)).returning();
+    return rows[0];
   }
 }

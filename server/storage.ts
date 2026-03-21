@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
-  InsertTrade, RegisterInput
+  InsertTrade, RegisterInput, Duel
 } from "@shared/schema";
 
 export interface IStorage {
@@ -40,6 +40,13 @@ export interface IStorage {
   register(input: RegisterInput): Promise<{ user: User; agent: Agent; portfolio: Portfolio; apiKey: string }>;
   // Stats
   getTradeCount(): Promise<number>;
+  // Duels
+  getDuel(id: string): Promise<Duel | undefined>;
+  getDuelsByAgent(agentId: string): Promise<Duel[]>;
+  getActiveDuels(): Promise<Duel[]>;
+  getAllDuels(): Promise<Duel[]>;
+  createDuel(duel: Duel): Promise<Duel>;
+  updateDuel(id: string, updates: Partial<Duel>): Promise<Duel>;
 }
 
 function generateApiKey(): string {
@@ -60,6 +67,7 @@ export class MemStorage implements IStorage {
   private trades: Map<string, Trade> = new Map();
   private snapshots: Map<string, DailySnapshot> = new Map();
   private leaderboard: Map<string, LeaderboardEntry> = new Map();
+  private duels: Map<string, Duel> = new Map();
 
   constructor() {
     this.seed();
@@ -160,6 +168,32 @@ export class MemStorage implements IStorage {
 
   // Stats
   async getTradeCount() { return this.trades.size; }
+
+  // Duels
+  async getDuel(id: string) { return this.duels.get(id); }
+  async getDuelsByAgent(agentId: string) {
+    return Array.from(this.duels.values()).filter(
+      d => d.challengerAgentId === agentId || d.opponentAgentId === agentId
+    ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  async getActiveDuels() {
+    return Array.from(this.duels.values()).filter(d => d.status === "active");
+  }
+  async getAllDuels() {
+    return Array.from(this.duels.values()).sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+  async createDuel(duel: Duel) {
+    this.duels.set(duel.id, duel);
+    return duel;
+  }
+  async updateDuel(id: string, updates: Partial<Duel>) {
+    const duel = this.duels.get(id)!;
+    const updated = { ...duel, ...updates };
+    this.duels.set(id, updated);
+    return updated;
+  }
 
   // Register
   async register(input: RegisterInput) {
@@ -525,6 +559,20 @@ FOR each pair IN watchlist:
     entries.forEach((e, i) => {
       e.rank = i + 1;
     });
+
+    // Seed duels
+    const duelSeed: Duel[] = [
+      { id: "duel-1", challengerAgentId: "agent-1", opponentAgentId: "agent-2", competitionId: compId, wager: 500, durationMinutes: 240, status: "completed", challengerStartEquity: 130000, opponentStartEquity: 125000, challengerEndEquity: 131200, opponentEndEquity: 124500, challengerReturn: 0.0092, opponentReturn: -0.004, winnerAgentId: "agent-1", startedAt: new Date("2026-03-15T10:00:00Z"), endsAt: new Date("2026-03-15T14:00:00Z"), createdAt: new Date("2026-03-15T09:30:00Z"), resolvedAt: new Date("2026-03-15T14:00:00Z") },
+      { id: "duel-2", challengerAgentId: "agent-3", opponentAgentId: "agent-5", competitionId: compId, wager: 0, durationMinutes: 1440, status: "completed", challengerStartEquity: 120000, opponentStartEquity: 116000, challengerEndEquity: 121800, opponentEndEquity: 117400, challengerReturn: 0.015, opponentReturn: 0.012, winnerAgentId: "agent-3", startedAt: new Date("2026-03-16T00:00:00Z"), endsAt: new Date("2026-03-17T00:00:00Z"), createdAt: new Date("2026-03-15T22:00:00Z"), resolvedAt: new Date("2026-03-17T00:00:00Z") },
+      { id: "duel-3", challengerAgentId: "agent-4", opponentAgentId: "agent-6", competitionId: compId, wager: 200, durationMinutes: 60, status: "active", challengerStartEquity: 119800, opponentStartEquity: 116300, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: new Date(), endsAt: new Date(Date.now() + 3600000), createdAt: new Date(Date.now() - 600000), resolvedAt: null },
+      { id: "duel-4", challengerAgentId: "agent-8", opponentAgentId: "agent-10", competitionId: compId, wager: 100, durationMinutes: 240, status: "active", challengerStartEquity: 113100, opponentStartEquity: 109400, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: new Date(Date.now() - 7200000), endsAt: new Date(Date.now() + 1800000), createdAt: new Date(Date.now() - 7800000), resolvedAt: null },
+      { id: "duel-5", challengerAgentId: "agent-7", opponentAgentId: "agent-9", competitionId: compId, wager: 300, durationMinutes: 480, status: "pending", challengerStartEquity: null, opponentStartEquity: null, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: null, endsAt: null, createdAt: new Date(Date.now() - 3600000), resolvedAt: null },
+      { id: "duel-6", challengerAgentId: "agent-1", opponentAgentId: "agent-4", competitionId: compId, wager: 1000, durationMinutes: 1440, status: "pending", challengerStartEquity: null, opponentStartEquity: null, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: null, endsAt: null, createdAt: new Date(Date.now() - 1800000), resolvedAt: null },
+      { id: "duel-7", challengerAgentId: "agent-11", opponentAgentId: "agent-2", competitionId: compId, wager: 250, durationMinutes: 60, status: "declined", challengerStartEquity: null, opponentStartEquity: null, challengerEndEquity: null, opponentEndEquity: null, challengerReturn: null, opponentReturn: null, winnerAgentId: null, startedAt: null, endsAt: null, createdAt: new Date("2026-03-14T12:00:00Z"), resolvedAt: null },
+    ];
+    for (const d of duelSeed) {
+      this.duels.set(d.id, d);
+    }
   }
 
   private computeComposite(
