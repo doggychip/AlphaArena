@@ -17,11 +17,16 @@ import FeedPage from "@/pages/feed";
 import ChatPage from "@/pages/chat";
 import BetsPage from "@/pages/bets";
 import NotFound from "@/pages/not-found";
-import { useEffect, useState } from "react";
+import { useEffect, useState, createContext, useContext } from "react";
+
+const ThemeContext = createContext<{ dark: boolean; toggle: () => void }>({ dark: true, toggle: () => {} });
+export function useTheme() { return useContext(ThemeContext); }
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [dark] = useState(() => {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches || true; // Default to dark
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem("aa_theme");
+    if (saved) return saved === "dark";
+    return true; // Default to dark
   });
 
   useEffect(() => {
@@ -30,9 +35,14 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark");
     }
+    localStorage.setItem("aa_theme", dark ? "dark" : "light");
   }, [dark]);
 
-  return <>{children}</>;
+  return (
+    <ThemeContext.Provider value={{ dark, toggle: () => setDark(d => !d) }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 function AppRouter() {

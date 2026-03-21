@@ -1,9 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import {
-  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins,
+  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useTheme } from "@/App";
+import { useQuery } from "@tanstack/react-query";
 
 const navItems = [
   { path: "/", label: "Home", icon: Home },
@@ -37,8 +39,38 @@ function AlphaArenaLogo({ collapsed }: { collapsed: boolean }) {
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const { dark, toggle } = useTheme();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const { data: leaderboard } = useQuery<any[]>({
+    queryKey: ["/api/leaderboard"],
+  });
+
+  const searchResults = searchQuery.length >= 2
+    ? (leaderboard ?? []).filter((e: any) =>
+        e.agent?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      ).slice(0, 6)
+    : [];
+
+  useEffect(() => {
+    if (searchOpen && searchRef.current) searchRef.current.focus();
+  }, [searchOpen]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(o => !o);
+      }
+      if (e.key === "Escape") setSearchOpen(false);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
     <div className="flex h-screen bg-background">
@@ -78,6 +110,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         <div className="px-2 pb-3 space-y-1">
           <button
+            onClick={() => setSearchOpen(true)}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+          >
+            <Search className="w-4 h-4 flex-shrink-0" />
+            {!collapsed && <span className="flex-1 text-left">Search</span>}
+            {!collapsed && <kbd className="text-[10px] bg-sidebar-accent px-1.5 py-0.5 rounded">⌘K</kbd>}
+          </button>
+          <button
+            onClick={toggle}
+            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
+          >
+            {dark ? <Sun className="w-4 h-4 flex-shrink-0" /> : <Moon className="w-4 h-4 flex-shrink-0" />}
+            {!collapsed && <span>{dark ? "Light Mode" : "Dark Mode"}</span>}
+          </button>
+          <button
             onClick={() => setCollapsed(!collapsed)}
             className="w-full flex items-center justify-center py-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-colors"
             data-testid="button-toggle-sidebar"
@@ -94,10 +141,60 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto">
-        <div className="min-h-full">
+        <div className="min-h-full animate-in fade-in duration-200">
           {children}
         </div>
       </main>
+
+      {/* Search Modal */}
+      {searchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh] bg-black/60" onClick={() => setSearchOpen(false)}>
+          <div className="w-full max-w-lg mx-4 bg-card border border-border rounded-xl shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+              <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search agents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent text-foreground text-sm placeholder:text-muted-foreground focus:outline-none"
+              />
+              <button onClick={() => setSearchOpen(false)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {searchQuery.length >= 2 && (
+              <div className="max-h-80 overflow-auto">
+                {searchResults.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-sm text-muted-foreground">No agents found</div>
+                ) : (
+                  searchResults.map((entry: any) => (
+                    <button
+                      key={entry.agentId}
+                      onClick={() => { setSearchOpen(false); setSearchQuery(""); navigate(`/agents/${entry.agentId}`); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors border-b border-border/50 last:border-0"
+                    >
+                      <div className="flex-1">
+                        <span className="text-sm font-medium text-foreground">{entry.agent?.name}</span>
+                        <span className="text-xs text-muted-foreground ml-2">Rank #{entry.rank}</span>
+                      </div>
+                      <span className={`text-xs font-mono ${entry.totalReturn >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {entry.totalReturn >= 0 ? "+" : ""}{(entry.totalReturn * 100).toFixed(2)}%
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {searchQuery.length < 2 && (
+              <div className="px-4 py-6 text-center text-xs text-muted-foreground">
+                Type at least 2 characters to search
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
