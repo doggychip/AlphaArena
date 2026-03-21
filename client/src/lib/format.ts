@@ -118,6 +118,35 @@ export function formatRelativeTime(date: Date | string): string {
   return `${days}d ago`;
 }
 
+const LEVEL_THRESHOLDS = [0, 100, 250, 500, 1000, 2000, 3500, 5000];
+
+export function getLevelFromXP(xp: number): number {
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= LEVEL_THRESHOLDS[i]) return i + 1;
+  }
+  return 1;
+}
+
+export function getXPProgress(xp: number): { level: number; current: number; needed: number; percent: number } {
+  const level = getLevelFromXP(xp);
+  const currentThreshold = LEVEL_THRESHOLDS[level - 1] ?? 0;
+  const nextThreshold = LEVEL_THRESHOLDS[level] ?? LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+  const isMax = level >= LEVEL_THRESHOLDS.length;
+  return {
+    level,
+    current: xp - currentThreshold,
+    needed: nextThreshold - currentThreshold,
+    percent: isMax ? 100 : Math.round(((xp - currentThreshold) / (nextThreshold - currentThreshold)) * 100),
+  };
+}
+
+export function levelBadgeClass(level: number): string {
+  if (level >= 7) return "bg-amber-500/15 text-amber-400 border-amber-500/20";
+  if (level >= 5) return "bg-purple-500/15 text-purple-400 border-purple-500/20";
+  if (level >= 3) return "bg-cyan-500/15 text-cyan-400 border-cyan-500/20";
+  return "bg-muted text-muted-foreground border-muted";
+}
+
 export function priceChangeColor(value: number): string {
   if (value > 0) return "text-emerald-400";
   if (value < 0) return "text-red-400";

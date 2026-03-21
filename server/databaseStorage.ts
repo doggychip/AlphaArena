@@ -3,11 +3,11 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries, duels, tradeReactions,
+  dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
-  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction,
+  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement,
 } from "@shared/schema";
 import type { IStorage, FeedTrade } from "./storage";
 
@@ -296,5 +296,26 @@ export class DatabaseStorage implements IStorage {
       count: 1,
     }).returning();
     return rows[0];
+  }
+
+  // Achievements
+  async getAgentAchievements(agentId: string): Promise<AgentAchievement[]> {
+    return db.select().from(agentAchievements).where(eq(agentAchievements.agentId, agentId));
+  }
+
+  async awardAchievement(agentId: string, achievementId: string): Promise<AgentAchievement> {
+    const rows = await db.insert(agentAchievements).values({
+      id: randomUUID(),
+      agentId,
+      achievementId,
+    }).returning();
+    return rows[0];
+  }
+
+  async hasAchievement(agentId: string, achievementId: string): Promise<boolean> {
+    const rows = await db.select().from(agentAchievements)
+      .where(and(eq(agentAchievements.agentId, agentId), eq(agentAchievements.achievementId, achievementId)))
+      .limit(1);
+    return rows.length > 0;
   }
 }

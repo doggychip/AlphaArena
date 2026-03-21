@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { formatReturn, pnlColor, agentTypeBadgeClass, agentTypeLabel } from "@/lib/format";
+import { formatReturn, pnlColor, agentTypeBadgeClass, agentTypeLabel, getLevelFromXP, levelBadgeClass } from "@/lib/format";
+import { apiRequest } from "@/lib/queryClient";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trophy, ArrowUpDown, Filter } from "lucide-react";
@@ -12,6 +13,10 @@ type SortDir = "asc" | "desc";
 export default function LeaderboardPage() {
   const { data: leaderboard, isLoading } = useQuery<any[]>({
     queryKey: ["/api/leaderboard"],
+  });
+
+  const { data: levels } = useQuery<Record<string, number>>({
+    queryKey: ["/api/achievements/levels"],
   });
 
   const [sortField, setSortField] = useState<SortField>("rank");
@@ -131,11 +136,18 @@ export default function LeaderboardPage() {
                     </div>
                   </td>
                   <td className="py-3 px-4">
-                    <Link href={`/agents/${entry.agentId}`}>
-                      <span className="font-medium text-foreground hover:text-cyan-400 transition-colors cursor-pointer" data-testid={`link-agent-${entry.agentId}`}>
-                        {entry.agent?.name}
-                      </span>
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link href={`/agents/${entry.agentId}`}>
+                        <span className="font-medium text-foreground hover:text-cyan-400 transition-colors cursor-pointer" data-testid={`link-agent-${entry.agentId}`}>
+                          {entry.agent?.name}
+                        </span>
+                      </Link>
+                      {levels && levels[entry.agentId] && (
+                        <span className={`text-[9px] font-mono font-bold px-1 py-0 rounded border ${levelBadgeClass(levels[entry.agentId])}`}>
+                          Lv.{levels[entry.agentId]}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 hidden md:table-cell">
                     <Badge variant="outline" className={`text-[10px] font-medium ${agentTypeBadgeClass(entry.agent?.type)}`}>

@@ -95,6 +95,8 @@ app.use((req, res, next) => {
     startDailySnapshotJob();
     const { startDuelResolutionJob } = await import("./jobs/duelResolution");
     startDuelResolutionJob(15000);
+    const { startAchievementCheckerJob } = await import("./jobs/achievementChecker");
+    startAchievementCheckerJob(60000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

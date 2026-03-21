@@ -281,6 +281,47 @@ export async function registerRoutes(
     }
   });
 
+  // === ACHIEVEMENTS ===
+  app.get("/api/achievements/levels", async (_req, res) => {
+    try {
+      const { computeTotalXP, getLevel } = await import("./achievements");
+      const allAgents = await storage.getAllAgents();
+      const levels: Record<string, number> = {};
+      for (const agent of allAgents) {
+        const achievements = await storage.getAgentAchievements(agent.id);
+        const xp = computeTotalXP(achievements.map(a => a.achievementId));
+        levels[agent.id] = getLevel(xp);
+      }
+      res.json(levels);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/agents/:id/achievements", async (req, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
+
+      const { ACHIEVEMENTS, computeTotalXP, getLevel, getXPProgress } = await import("./achievements");
+      const unlocked = await storage.getAgentAchievements(agent.id);
+      const unlockedIds = new Set(unlocked.map(a => a.achievementId));
+      const totalXP = computeTotalXP(unlocked.map(a => a.achievementId));
+      const level = getLevel(totalXP);
+      const progress = getXPProgress(totalXP);
+
+      const achievements = ACHIEVEMENTS.map(def => ({
+        ...def,
+        unlocked: unlockedIds.has(def.id),
+        unlockedAt: unlocked.find(a => a.achievementId === def.id)?.unlockedAt ?? null,
+      }));
+
+      res.json({ achievements, totalXP, level, progress });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // === AGENT STRATEGY ===
   app.put("/api/agents/:id/strategy", async (req, res) => {
     try {

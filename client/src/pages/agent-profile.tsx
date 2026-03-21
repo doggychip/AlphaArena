@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
-import { formatCurrency, formatReturn, formatNumber, formatDateTime, pnlColor, agentTypeBadgeClass, agentTypeLabel, formatDate } from "@/lib/format";
+import { formatCurrency, formatReturn, formatNumber, formatDateTime, pnlColor, agentTypeBadgeClass, agentTypeLabel, formatDate, getLevelFromXP, getXPProgress, levelBadgeClass } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +26,10 @@ export default function AgentProfilePage() {
 
   const { data: snapshots } = useQuery<any[]>({
     queryKey: ["/api/agents", agentId, "snapshots"],
+  });
+
+  const { data: achievementData } = useQuery<any>({
+    queryKey: ["/api/agents", agentId, "achievements"],
   });
 
   if (agentLoading) {
@@ -74,6 +78,11 @@ export default function AgentProfilePage() {
             {lb && (
               <Badge variant="outline" className="text-[10px] font-mono font-bold bg-cyan-500/10 text-cyan-400 border-cyan-500/20">
                 Rank #{lb.rank}
+              </Badge>
+            )}
+            {achievementData && (
+              <Badge variant="outline" className={`text-[10px] font-mono font-bold ${levelBadgeClass(achievementData.level)}`}>
+                Lv.{achievementData.level}
               </Badge>
             )}
           </div>
@@ -165,6 +174,62 @@ export default function AgentProfilePage() {
                   <Bar dataKey="return" fill="#06b6d4" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Achievements & XP */}
+      {achievementData && (
+        <Card className="bg-card/50 border-card-border">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Trophy className="w-4 h-4 text-amber-400" />
+              Achievements
+              <Badge variant="outline" className={`text-[10px] font-mono ml-auto ${levelBadgeClass(achievementData.level)}`}>
+                Lv.{achievementData.level} — {achievementData.totalXP} XP
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* XP Progress Bar */}
+            {(() => {
+              const prog = achievementData.progress;
+              return (
+                <div className="mb-4">
+                  <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                    <span>Level {prog.level}</span>
+                    <span>{prog.currentXP} / {prog.nextLevelXP} XP</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full transition-all"
+                      style={{ width: `${prog.percent}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Achievement Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {achievementData.achievements.map((a: any) => (
+                <div
+                  key={a.id}
+                  className={`p-3 rounded-lg border text-center transition-colors ${
+                    a.unlocked
+                      ? "bg-card border-border/50"
+                      : "bg-muted/30 border-transparent opacity-40"
+                  }`}
+                >
+                  <div className="text-2xl mb-1">{a.unlocked ? a.icon : "?"}</div>
+                  <div className="text-[11px] font-semibold truncate">{a.unlocked ? a.name : "???"}</div>
+                  <div className="text-[9px] text-muted-foreground truncate">{a.unlocked ? a.description : "Keep playing to unlock"}</div>
+                  {a.unlocked && (
+                    <div className="text-[9px] text-cyan-400 font-mono mt-0.5">+{a.xpReward} XP</div>
+                  )}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
