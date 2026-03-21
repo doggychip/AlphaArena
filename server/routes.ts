@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { registerSchema, insertTradeSchema, updateStrategySchema } from "@shared/schema";
+import { registerSchema, insertTradeSchema, updateStrategySchema, insertDuelSchema } from "@shared/schema";
 import { randomUUID } from "crypto";
 import type { Position } from "@shared/schema";
 import { getCurrentPrices, startPriceEngine, getPriceForPair } from "./prices";
@@ -331,6 +331,178 @@ export async function registerRoutes(
           totalVolume: 14238450, // Simulated
         }
       });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // === DUELS ===
+  app.get("/api/duels", async (req, res) => {
+    try {
+      const { status, agentId } = req.query;
+      let allDuels = agentId
+        ? await storage.getDuelsByAgent(agentId as string)
+        : await storage.getAllDuels();
+      if (status) {
+        allDuels = allDuels.filter(d => d.status === status);
+      }
+      // Enrich with agent names
+      const enriched = await Promise.all(allDuels.map(async (d) => {
+        const challenger = await storage.getAgent(d.challengerAgentId);
+        const opponent = await storage.getAgent(d.opponentAgentId);
+        return { ...d, challengerName: challenger?.name, opponentName: opponent?.name, challengerType: challenger?.type, opponentType: opponent?.type };
+      }));
+      res.json(enriched);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/duels/:id", async (req, res) => {
+    try {
+      const duel = await storage.getDuel(req.params.id);
+      if (!duel) return res.status(404).json({ error: "Duel not found" });
+
+      const challenger = await storage.getAgent(duel.challengerAgentId);
+      const opponent = await storage.getAgent(duel.opponentAgentId);
+      const comp = await storage.getCompetition(duel.competitionId);
+
+      // Get snapshots for equity curve overlay if duel has started
+      let challengerSnapshots: any[] = [];
+      let opponentSnapshots: any[] = [];
+      if (duel.startedAt && comp) {
+        const cPortfolio = await storage.getPortfolioByAgent(duel.challengerAgentId, comp.id);
+        const oPortfolio = await storage.getPortfolioByAgent(duel.opponentAgentId, comp.id);
+        if (cPortfolio) challengerSnapshots = await storage.getSnapshotsByPortfolio(cPortfolio.id);
+        if (oPortfolio) opponentSnapshots = await storage.getSnapshotsByPortfolio(oPortfolio.id);
+      }
+
+      res.json({
+        duel,
+        challenger: { agent: challenger, snapshots: challengerSnapshots },
+        opponent: { agent: opponent, snapshots: opponentSnapshots },
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/duels/challenge", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const parsed = insertDuelSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
+
+      const { agentId, opponentAgentId, durationMinutes, wager } = parsed.data;
+
+      const challengerAgent = await storage.getAgent(agentId);
+      if (!challengerAgent || challengerAgent.userId !== user.id) {
+        return res.status(403).json({ error: "Agent not found or not owned by you" });
+      }
+
+      if (agentId === opponentAgentId) {
+        return res.status(400).json({ error: "Cannot duel yourself" });
+      }
+
+      const opponentAgent = await storage.getAgent(opponentAgentId);
+      if (!opponentAgent || opponentAgent.status !== "active") {
+        return res.status(400).json({ error: "Opponent agent not found or inactive" });
+      }
+
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.status(400).json({ error: "No active competition" });
+
+      const duel = await storage.createDuel({
+        id: randomUUID(),
+        challengerAgentId: agentId,
+        opponentAgentId,
+        competitionId: comp.id,
+        wager: wager ?? 0,
+        durationMinutes,
+        status: "pending",
+        challengerStartEquity: null,
+        opponentStartEquity: null,
+        challengerEndEquity: null,
+        opponentEndEquity: null,
+        challengerReturn: null,
+        opponentReturn: null,
+        winnerAgentId: null,
+        startedAt: null,
+        endsAt: null,
+        createdAt: new Date(),
+        resolvedAt: null,
+      });
+
+      res.status(201).json(duel);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/duels/:id/accept", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const duel = await storage.getDuel(req.params.id);
+      if (!duel) return res.status(404).json({ error: "Duel not found" });
+      if (duel.status !== "pending") return res.status(400).json({ error: "Duel is not pending" });
+
+      const opponentAgent = await storage.getAgent(duel.opponentAgentId);
+      if (!opponentAgent || opponentAgent.userId !== user.id) {
+        return res.status(403).json({ error: "Only the opponent can accept" });
+      }
+
+      const comp = await storage.getCompetition(duel.competitionId);
+      if (!comp) return res.status(400).json({ error: "Competition not found" });
+
+      const challengerPortfolio = await storage.getPortfolioByAgent(duel.challengerAgentId, comp.id);
+      const opponentPortfolio = await storage.getPortfolioByAgent(duel.opponentAgentId, comp.id);
+
+      const now = new Date();
+      const endsAt = new Date(now.getTime() + duel.durationMinutes * 60 * 1000);
+
+      const updated = await storage.updateDuel(duel.id, {
+        status: "active",
+        challengerStartEquity: challengerPortfolio?.totalEquity ?? 100000,
+        opponentStartEquity: opponentPortfolio?.totalEquity ?? 100000,
+        startedAt: now,
+        endsAt,
+      });
+
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/duels/:id/decline", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const duel = await storage.getDuel(req.params.id);
+      if (!duel) return res.status(404).json({ error: "Duel not found" });
+      if (duel.status !== "pending") return res.status(400).json({ error: "Duel is not pending" });
+
+      const opponentAgent = await storage.getAgent(duel.opponentAgentId);
+      if (!opponentAgent || opponentAgent.userId !== user.id) {
+        return res.status(403).json({ error: "Only the opponent can decline" });
+      }
+
+      const updated = await storage.updateDuel(duel.id, { status: "declined" });
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

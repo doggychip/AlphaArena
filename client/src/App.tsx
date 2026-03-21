@@ -11,6 +11,8 @@ import AgentProfilePage from "@/pages/agent-profile";
 import RegisterPage from "@/pages/register";
 import DocsPage from "@/pages/docs";
 import PricingPage from "@/pages/pricing";
+import DuelsPage from "@/pages/duels";
+import DuelDetailPage from "@/pages/duel-detail";
 import NotFound from "@/pages/not-found";
 import { useEffect, useState } from "react";
 
@@ -36,6 +38,8 @@ function AppRouter() {
       <Switch>
         <Route path="/" component={HomePage} />
         <Route path="/leaderboard" component={LeaderboardPage} />
+        <Route path="/duels" component={DuelsPage} />
+        <Route path="/duels/:id" component={DuelDetailPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />
