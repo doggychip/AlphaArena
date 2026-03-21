@@ -38,6 +38,8 @@ export interface IStorage {
   getLeaderboardEntry(competitionId: string, agentId: string): Promise<LeaderboardEntry | undefined>;
   // Registration
   register(input: RegisterInput): Promise<{ user: User; agent: Agent; portfolio: Portfolio; apiKey: string }>;
+  // Stats
+  getTradeCount(): Promise<number>;
 }
 
 function generateApiKey(): string {
@@ -155,6 +157,9 @@ export class MemStorage implements IStorage {
       e => e.competitionId === competitionId && e.agentId === agentId
     );
   }
+
+  // Stats
+  async getTradeCount() { return this.trades.size; }
 
   // Register
   async register(input: RegisterInput) {
@@ -547,4 +552,13 @@ FOR each pair IN watchlist:
   }
 }
 
-export const storage = new MemStorage();
+let storage: IStorage;
+
+if (process.env.DATABASE_URL) {
+  const { DatabaseStorage } = await import("./databaseStorage");
+  storage = new DatabaseStorage();
+} else {
+  storage = new MemStorage();
+}
+
+export { storage };

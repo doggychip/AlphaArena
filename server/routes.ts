@@ -322,7 +322,7 @@ export async function registerRoutes(
       if (!comp) return res.status(404).json({ error: "No active competition" });
 
       const allAgents = await storage.getAllAgents();
-      const totalTrades = Array.from((storage as any).trades?.values?.() || []).length;
+      const totalTrades = await storage.getTradeCount();
       res.json({
         competition: comp,
         stats: {
