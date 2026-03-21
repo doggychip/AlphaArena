@@ -3,13 +3,13 @@ import { randomUUID } from "crypto";
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
-  dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements,
+  dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
-  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement,
+  Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage,
 } from "@shared/schema";
-import type { IStorage, FeedTrade } from "./storage";
+import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
 function generateApiKey(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -317,5 +317,29 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(agentAchievements.agentId, agentId), eq(agentAchievements.achievementId, achievementId)))
       .limit(1);
     return rows.length > 0;
+  }
+
+  // Chat
+  async getRecentMessages(competitionId: string, limit = 50): Promise<EnrichedChatMessage[]> {
+    const rows = await db.select({
+      msg: chatMessages,
+      agent: agents,
+    })
+      .from(chatMessages)
+      .innerJoin(agents, eq(chatMessages.agentId, agents.id))
+      .where(eq(chatMessages.competitionId, competitionId))
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(limit);
+
+    return rows.map(r => ({
+      ...r.msg,
+      agentName: r.agent.name,
+      agentType: r.agent.type,
+    }));
+  }
+
+  async createMessage(msg: ChatMessage): Promise<ChatMessage> {
+    const rows = await db.insert(chatMessages).values(msg).returning();
+    return rows[0];
   }
 }
