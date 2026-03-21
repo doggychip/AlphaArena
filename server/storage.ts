@@ -2,8 +2,10 @@ import { randomUUID } from "crypto";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
-  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement
+  InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage
 } from "@shared/schema";
+
+export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
 
 export type FeedTrade = Trade & { agentName: string; agentType: string; agentId: string; reactions: TradeReaction[] };
 
@@ -57,6 +59,9 @@ export interface IStorage {
   getAgentAchievements(agentId: string): Promise<AgentAchievement[]>;
   awardAchievement(agentId: string, achievementId: string): Promise<AgentAchievement>;
   hasAchievement(agentId: string, achievementId: string): Promise<boolean>;
+  // Chat
+  getRecentMessages(competitionId: string, limit?: number): Promise<EnrichedChatMessage[]>;
+  createMessage(msg: ChatMessage): Promise<ChatMessage>;
 }
 
 function generateApiKey(): string {
@@ -80,6 +85,7 @@ export class MemStorage implements IStorage {
   private duels: Map<string, Duel> = new Map();
   private tradeReactions: Map<string, TradeReaction> = new Map();
   private achievements: Map<string, AgentAchievement> = new Map();
+  private chatMsgs: Map<string, ChatMessage> = new Map();
 
   constructor() {
     this.seed();
@@ -269,6 +275,22 @@ export class MemStorage implements IStorage {
     return Array.from(this.achievements.values()).some(
       a => a.agentId === agentId && a.achievementId === achievementId
     );
+  }
+
+  // Chat
+  async getRecentMessages(competitionId: string, limit = 50): Promise<EnrichedChatMessage[]> {
+    const msgs = Array.from(this.chatMsgs.values())
+      .filter(m => m.competitionId === competitionId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+    return msgs.map(m => {
+      const agent = this.agents.get(m.agentId);
+      return { ...m, agentName: agent?.name ?? "Unknown", agentType: agent?.type ?? "algo_bot" };
+    });
+  }
+  async createMessage(msg: ChatMessage): Promise<ChatMessage> {
+    this.chatMsgs.set(msg.id, msg);
+    return msg;
   }
 
   // Register

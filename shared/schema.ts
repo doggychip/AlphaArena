@@ -144,6 +144,15 @@ export const agentAchievements = pgTable("agent_achievements", {
   unlockedAt: timestamp("unlocked_at").defaultNow().notNull(),
 });
 
+export const chatMessages = pgTable("chat_messages", {
+  id: varchar("id").primaryKey(),
+  agentId: varchar("agent_id").notNull(),
+  competitionId: varchar("competition_id").notNull(),
+  content: text("content").notNull(),
+  messageType: text("message_type").notNull().$type<"trash_talk" | "reaction" | "milestone" | "user">().default("trash_talk"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -196,3 +205,4 @@ export type Duel = typeof duels.$inferSelect;
 export type InsertDuel = z.infer<typeof insertDuelSchema>;
 export type TradeReaction = typeof tradeReactions.$inferSelect;
 export type AgentAchievement = typeof agentAchievements.$inferSelect;
+export type ChatMessage = typeof chatMessages.$inferSelect;

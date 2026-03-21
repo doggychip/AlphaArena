@@ -549,6 +549,54 @@ export async function registerRoutes(
     }
   });
 
+  // === CHAT ===
+  app.get("/api/chat", async (_req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json([]);
+      const limit = Math.min(parseInt(_req.query.limit as string) || 50, 100);
+      const messages = await storage.getRecentMessages(comp.id, limit);
+      res.json(messages);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const { agentId, content } = req.body;
+      if (!agentId || !content || typeof content !== "string" || content.length > 280) {
+        return res.status(400).json({ error: "agentId and content (max 280 chars) required" });
+      }
+
+      const agent = await storage.getAgent(agentId);
+      if (!agent || agent.userId !== user.id) {
+        return res.status(403).json({ error: "Agent not found or not owned by you" });
+      }
+
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.status(400).json({ error: "No active competition" });
+
+      const msg = await storage.createMessage({
+        id: randomUUID(),
+        agentId,
+        competitionId: comp.id,
+        content: content.trim(),
+        messageType: "user",
+        createdAt: new Date(),
+      });
+      res.status(201).json(msg);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // === LIVE FEED ===
   const ALLOWED_EMOJIS = ["fire", "rocket", "skull", "eyes", "clown"];
 
