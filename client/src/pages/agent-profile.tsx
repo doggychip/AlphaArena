@@ -1,16 +1,46 @@
-import { useQuery } from "@tanstack/react-query";
-import { useParams } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatReturn, formatNumber, formatDateTime, pnlColor, agentTypeBadgeClass, agentTypeLabel, formatDate, getLevelFromXP, getXPProgress, levelBadgeClass } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Bot, TrendingUp, TrendingDown, Shield, Target, BarChart3, Calendar, User, Trophy, Code, Clock, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Bot, TrendingUp, TrendingDown, Shield, Target, BarChart3, Calendar, User, Trophy, Code, Clock, Zap, Swords, X } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { useState, useEffect } from "react";
 
 export default function AgentProfilePage() {
   const params = useParams<{ id: string }>();
   const agentId = params.id;
+  const [, navigate] = useLocation();
+
+  // Challenge dialog state
+  const [showChallenge, setShowChallenge] = useState(false);
+  const [challengeApiKey, setChallengeApiKey] = useState(() => localStorage.getItem("aa_api_key") ?? "");
+  const [challengerAgentId, setChallengerAgentId] = useState("");
+  const [duelDuration, setDuelDuration] = useState(60);
+  const [duelWager, setDuelWager] = useState(0);
+
+  useEffect(() => {
+    if (challengeApiKey) localStorage.setItem("aa_api_key", challengeApiKey);
+  }, [challengeApiKey]);
+
+  const challengeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/duels/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": challengeApiKey },
+        body: JSON.stringify({ agentId: challengerAgentId, opponentAgentId: agentId, durationMinutes: duelDuration, wager: duelWager }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setShowChallenge(false);
+      navigate(`/duels/${data.id}`);
+    },
+  });
 
   const { data: agentData, isLoading: agentLoading } = useQuery<any>({
     queryKey: ["/api/agents", agentId],
@@ -92,7 +122,92 @@ export default function AgentProfilePage() {
             <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Registered {formatDate(agent.createdAt)}</span>
           </div>
         </div>
+        <Button
+          onClick={() => setShowChallenge(true)}
+          variant="outline"
+          className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 flex-shrink-0"
+        >
+          <Swords className="w-4 h-4 mr-2" />
+          Challenge
+        </Button>
       </div>
+
+      {/* Challenge Dialog */}
+      {showChallenge && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowChallenge(false)}>
+          <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Swords className="w-5 h-5 text-amber-400" /> Challenge {agent.name}
+                </CardTitle>
+                <button onClick={() => setShowChallenge(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Your API Key</label>
+                <input
+                  type="text"
+                  placeholder="aa_..."
+                  value={challengeApiKey}
+                  onChange={(e) => setChallengeApiKey(e.target.value)}
+                  className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Your Agent ID</label>
+                <input
+                  type="text"
+                  placeholder="agent-1 or UUID"
+                  value={challengerAgentId}
+                  onChange={(e) => setChallengerAgentId(e.target.value)}
+                  className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-cyan-500/50"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Duration</label>
+                  <select
+                    value={duelDuration}
+                    onChange={(e) => setDuelDuration(Number(e.target.value))}
+                    className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:border-cyan-500/50"
+                  >
+                    <option value={15}>15 minutes</option>
+                    <option value={60}>1 hour</option>
+                    <option value={240}>4 hours</option>
+                    <option value={1440}>24 hours</option>
+                    <option value={10080}>7 days</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Wager (credits)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={10000}
+                    value={duelWager}
+                    onChange={(e) => setDuelWager(Number(e.target.value))}
+                    className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground focus:outline-none focus:border-cyan-500/50"
+                  />
+                </div>
+              </div>
+              {challengeMutation.error && (
+                <p className="text-xs text-red-400">{(challengeMutation.error as Error).message}</p>
+              )}
+              <Button
+                onClick={() => challengeMutation.mutate()}
+                disabled={!challengeApiKey || !challengerAgentId || challengeMutation.isPending}
+                className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold"
+              >
+                {challengeMutation.isPending ? "Sending Challenge..." : "Send Challenge"}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Performance metrics */}
       {lb && (
