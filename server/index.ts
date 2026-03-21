@@ -114,6 +114,11 @@ app.use((req, res, next) => {
     startTournamentRunner(3600000);
     const { startChaosEngine } = await import("./jobs/chaosEngine");
     startChaosEngine(600000);
+    const { startPriceHistory } = await import("./priceHistory");
+    startPriceHistory(30000);
+    const { startAgentTrader } = await import("./jobs/agentTrader");
+    // Start after 60s to let price history build up
+    setTimeout(() => startAgentTrader(30000), 60000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
