@@ -4,12 +4,12 @@ import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
-  tournaments, tournamentEntries, marketEvents, referrals, competitions,
+  tournaments, tournamentEntries, marketEvents, referrals, competitions, agentDiagnostics,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent, Referral,
+  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -405,6 +405,19 @@ export class DatabaseStorage implements IStorage {
   }
   async updateMarketEvent(id: string, updates: Partial<MarketEvent>): Promise<MarketEvent> {
     const rows = await db.update(marketEvents).set(updates).where(eq(marketEvents.id, id)).returning();
+    return rows[0];
+  }
+
+  // Diagnostics
+  async getDiagnosticsByAgent(agentId: string, limit = 50): Promise<AgentDiagnostic[]> {
+    return db.select().from(agentDiagnostics).where(eq(agentDiagnostics.agentId, agentId)).orderBy(desc(agentDiagnostics.createdAt)).limit(limit);
+  }
+  async getDiagnosticsSummary(): Promise<{ category: string; count: number }[]> {
+    const rows = await db.select({ category: agentDiagnostics.category, count: count() }).from(agentDiagnostics).groupBy(agentDiagnostics.category);
+    return rows.map(r => ({ category: r.category, count: r.count }));
+  }
+  async createDiagnostic(d: AgentDiagnostic): Promise<AgentDiagnostic> {
+    const rows = await db.insert(agentDiagnostics).values(d).returning();
     return rows[0];
   }
 

@@ -207,6 +207,16 @@ export const marketEvents = pgTable("market_events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const agentDiagnostics = pgTable("agent_diagnostics", {
+  id: varchar("id").primaryKey(),
+  agentId: varchar("agent_id").notNull(),
+  tradeId: varchar("trade_id"),
+  category: text("category").notNull().$type<"bad_timing" | "wrong_pair" | "oversized" | "missed_opportunity" | "trend_reversal">(),
+  severity: text("severity").notNull().$type<"low" | "medium" | "high">().default("medium"),
+  details: text("details").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const referrals = pgTable("referrals", {
   id: varchar("id").primaryKey(),
   referrerId: varchar("referrer_id").notNull(),
@@ -273,4 +283,5 @@ export type Bet = typeof bets.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
 export type TournamentEntry = typeof tournamentEntries.$inferSelect;
 export type MarketEvent = typeof marketEvents.$inferSelect;
+export type AgentDiagnostic = typeof agentDiagnostics.$inferSelect;
 export type Referral = typeof referrals.$inferSelect;

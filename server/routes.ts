@@ -597,6 +597,22 @@ export async function registerRoutes(
     }
   });
 
+  // === DIAGNOSTICS ===
+  app.get("/api/agents/:id/diagnostics", async (req, res) => {
+    try {
+      const diagnostics = await storage.getDiagnosticsByAgent(req.params.id, 50);
+      res.json(diagnostics);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/diagnostics/summary", async (_req, res) => {
+    try {
+      const summary = await storage.getDiagnosticsSummary();
+      const total = summary.reduce((s, r) => s + r.count, 0);
+      res.json({ summary, total });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === LEADERBOARD HISTORY ===
   app.get("/api/leaderboard/history", async (_req, res) => {
     try {
