@@ -14,19 +14,11 @@ const COINGECKO_ID_MAP: Record<string, string> = {
   chainlink: "LINK/USD",
 };
 
-// Stock symbols — fetched from Yahoo Finance
-const STOCK_SYMBOLS: Record<string, string> = {
-  AAPL: "AAPL/USD",
-  TSLA: "TSLA/USD",
-  NVDA: "NVDA/USD",
-  MSFT: "MSFT/USD",
-  GOOGL: "GOOGL/USD",
-  AMZN: "AMZN/USD",
-  META: "META/USD",
-};
-
 const COINGECKO_IDS = Object.keys(COINGECKO_ID_MAP).join(",");
 const COINGECKO_URL = `https://api.coingecko.com/api/v3/simple/price?ids=${COINGECKO_IDS}&vs_currencies=usd&include_24hr_change=true`;
+
+// Stock tickers
+const STOCK_TICKERS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL", "META", "AMD"];
 
 // Fallback simulated prices
 const basePrices: Record<string, number> = {
@@ -40,17 +32,17 @@ const basePrices: Record<string, number> = {
   "AVAX/USD": 38.5,
   "DOT/USD": 7.82,
   "LINK/USD": 16.4,
-  // Stocks
-  "AAPL/USD": 178,
-  "TSLA/USD": 175,
-  "NVDA/USD": 875,
-  "MSFT/USD": 420,
-  "GOOGL/USD": 155,
-  "AMZN/USD": 185,
-  "META/USD": 505,
+  "AAPL/USD": 178.50,
+  "TSLA/USD": 245.30,
+  "NVDA/USD": 125.80,
+  "MSFT/USD": 420.15,
+  "AMZN/USD": 185.60,
+  "GOOGL/USD": 155.40,
+  "META/USD": 505.20,
+  "AMD/USD": 125.90,
 };
 
-export interface PriceData {
+interface PriceData {
   pair: string;
   price: number;
   change24h: number;
@@ -105,7 +97,7 @@ async function fetchCoinGeckoPrices(): Promise<PriceData[] | null> {
     clearTimeout(timeout);
 
     if (!res.ok) {
-      log(`CoinGecko API returned ${res.status}`, "data-provider");
+      log(`CoinGecko API returned ${res.status}`, "prices");
       return null;
     }
 
@@ -118,7 +110,8 @@ async function fetchCoinGeckoPrices(): Promise<PriceData[] | null> {
         prices.push({
           pair,
           price: entry.usd,
-          change24h: Math.round((entry.usd_24h_change ?? 0) * 100) / 100,
+          change24h:
+            Math.round((entry.usd_24h_change ?? 0) * 100) / 100,
         });
       }
     }
@@ -127,110 +120,91 @@ async function fetchCoinGeckoPrices(): Promise<PriceData[] | null> {
     return prices;
   } catch (err: any) {
     if (err.name !== "AbortError") {
-      log(`CoinGecko fetch error: ${err.message}`, "data-provider");
+      log(`CoinGecko fetch error: ${err.message}`, "prices");
     }
     return null;
   }
 }
 
 async function fetchStockPrices(): Promise<PriceData[]> {
-  const results: PriceData[] = [];
-  const symbols = Object.keys(STOCK_SYMBOLS).join(",");
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    // Yahoo Finance v8 API — free, no key needed
-    const url = `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${symbols}&range=1d&interval=1d`;
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
-    clearTimeout(timeout);
-
-    if (!res.ok) {
-      log(`Yahoo Finance API returned ${res.status}`, "data-provider");
-      return results;
-    }
-
-    const data = await res.json();
-    for (const [symbol, pair] of Object.entries(STOCK_SYMBOLS)) {
-      const spark = data.spark?.result?.find((r: any) => r.symbol === symbol);
-      if (spark?.response?.[0]?.meta) {
-        const meta = spark.response[0].meta;
-        const price = meta.regularMarketPrice ?? 0;
-        const prevClose = meta.previousClose ?? meta.chartPreviousClose ?? price;
-        const change24h = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
-        results.push({
-          pair,
-          price: Math.round(price * 100) / 100,
-          change24h: Math.round(change24h * 100) / 100,
-        });
-      }
-    }
-  } catch (err: any) {
-    if (err.name !== "AbortError") {
-      log(`Yahoo Finance fetch error: ${err.message}`, "data-provider");
-    }
+  const prices: PriceData[] = [];
+  for (const ticker of STOCK_TICKERS) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+      clearTimeout(timeout);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const result = data?.chart?.result?.[0];
+      if (!result) continue;
+      const meta = result.meta;
+      const price = meta.regularMarketPrice ?? meta.previousClose;
+      const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+      const change24h = prevClose > 0 ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : 0;
+      prices.push({ pair: `${ticker}/USD`, price: Math.round(price * 100) / 100, change24h });
+    } catch {}
   }
-
-  return results;
+  return prices;
 }
 
 async function refreshPrices() {
-  const livePrices = await fetchCoinGeckoPrices();
-  const stockPrices = await fetchStockPrices();
-
-  if (livePrices || stockPrices.length > 0) {
-    const allPrices = [...(livePrices || []), ...stockPrices];
-
-    // If we got live crypto but no stocks, add simulated stocks
-    if (livePrices && stockPrices.length === 0) {
-      for (const pair of Object.values(STOCK_SYMBOLS)) {
-        const base = basePrices[pair];
-        if (base) {
-          const sim = simulatedPrices[pair] || base;
-          const change = ((sim - base) / base) * 100;
-          allPrices.push({ pair, price: sim, change24h: Math.round(change * 100) / 100 });
-        }
-      }
-    }
-
+  const [livePrices, stockPrices] = await Promise.all([
+    fetchCoinGeckoPrices(),
+    fetchStockPrices(),
+  ]);
+  const allLive = [...(livePrices ?? []), ...stockPrices];
+  if (allLive.length > 0) {
     cache = {
-      prices: allPrices,
+      prices: allLive,
       timestamp: Date.now(),
-      isLive: true,
+      isLive: livePrices !== null,
     };
-    log(`Fetched live prices for ${allPrices.length} pairs (${livePrices?.length || 0} crypto + ${stockPrices.length} stocks)`, "data-provider");
+    log(`Fetched live prices for ${allLive.length} pairs (${livePrices?.length ?? 0} crypto + ${stockPrices.length} stocks)`, "prices");
   } else {
     cache = {
       prices: getSimulatedPrices(),
       timestamp: Date.now(),
       isLive: false,
     };
+    log("Using simulated prices (CoinGecko unavailable)", "prices");
   }
 }
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
-export function startDataProvider(intervalMs = 30000) {
+export function startPriceEngine() {
+  // Initial fetch
   refreshPrices();
-  intervalHandle = setInterval(refreshPrices, intervalMs);
-  log("Data provider started (30s refresh)", "data-provider");
+  // Refresh every 30 seconds
+  intervalHandle = setInterval(refreshPrices, 30000);
+  log("Price engine started (30s refresh interval)", "prices");
 }
 
-export function getCurrentPrices(): { prices: PriceData[]; isLive: boolean } {
+export function getCurrentPrices(): {
+  prices: PriceData[];
+  isLive: boolean;
+} {
+  // If cache is empty (engine just started), return simulated
   if (cache.prices.length === 0) {
     return { prices: getSimulatedPrices(), isLive: false };
   }
+
+  // If using simulated prices, update them on each call for responsiveness
   if (!cache.isLive) {
     return { prices: getSimulatedPrices(), isLive: false };
   }
+
   return { prices: cache.prices, isLive: cache.isLive };
 }
 
+// Also export price lookup for trade execution
 export function getPriceForPair(pair: string): number | undefined {
   const { prices } = getCurrentPrices();
-  return prices.find((p) => p.pair === pair)?.price;
+  const found = prices.find((p) => p.pair === pair);
+  return found?.price;
 }
