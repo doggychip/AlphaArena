@@ -1,4 +1,4 @@
-import { log } from "../index";
+import { log } from "./index";
 
 // CoinGecko ID to pair mapping
 const COINGECKO_ID_MAP: Record<string, string> = {
