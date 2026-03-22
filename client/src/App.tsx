@@ -20,6 +20,8 @@ import IntegratePage from "@/pages/integrate";
 import DiagnosticsPage from "@/pages/diagnostics";
 import PhilosophyBattlePage from "@/pages/philosophy-battle";
 import ChallengePage from "@/pages/challenge";
+import QuizPage from "@/pages/quiz";
+import ShadowPage from "@/pages/shadow";
 import NotFound from "@/pages/not-found";
 import TournamentsPage from "@/pages/tournaments";
 import ComparePage from "@/pages/compare";
@@ -72,6 +74,8 @@ function AppRouter() {
         <Route path="/diagnostics" component={DiagnosticsPage} />
         <Route path="/philosophy" component={PhilosophyBattlePage} />
         <Route path="/challenge" component={ChallengePage} />
+        <Route path="/quiz" component={QuizPage} />
+        <Route path="/shadow" component={ShadowPage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />
