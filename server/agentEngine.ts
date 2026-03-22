@@ -69,22 +69,28 @@ function cathieWood(_id: string, cash: number, positions: any[]): Signal {
   return { action: "hold", pair: "SOL/USD", quantity: 0, reason: "Conviction holds. 5-year time horizon." };
 }
 
-/** Qwen Arbitrage: Mean reversion */
-function qwenArbitrage(_id: string, cash: number, positions: any[]): Signal {
-  const pair = "ETH/USD";
-  const h = getPriceHistory(pair);
-  if (h.length < 20) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
-
-  const bb = bollingerBands(h, 20, 2);
-  const price = h[h.length - 1];
-
-  if (price < bb.lower) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.06), reason: `Below lower BB: ${price.toFixed(2)} < ${bb.lower.toFixed(2)}` };
+/** George Soros: Reflexivity — bets against overextended trends, breaks the market */
+function georgeSoros(_id: string, cash: number, positions: any[]): Signal {
+  // Find the most overextended pair (furthest from SMA) and bet against it
+  let mostExtended = ALL_PAIRS[0], maxExtension = 0, extDir = 0;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const price = h[h.length - 1];
+    const avg = sma(h, 20);
+    const ext = Math.abs(price - avg) / avg;
+    if (ext > maxExtension) { maxExtension = ext; mostExtended = pair; extDir = price > avg ? 1 : -1; }
   }
-  if (price > bb.upper && positions.some(p => p.pair === pair)) {
-    return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 0.1, reason: `Above upper BB: ${price.toFixed(2)} > ${bb.upper.toFixed(2)}` };
+  const price = getPriceHistory(mostExtended).slice(-1)[0] ?? 100;
+  // If overextended upward — sell (short the bubble)
+  if (maxExtension > 0.02 && extDir > 0 && positions.some(p => p.pair === mostExtended)) {
+    return { action: "sell", pair: mostExtended, quantity: positions.find(p => p.pair === mostExtended)?.quantity ?? sizeForCash(cash, price, 0.07), reason: `Reflexivity: ${mostExtended} overextended +${(maxExtension*100).toFixed(1)}%. Breaking the Bank of England.` };
   }
-  return { action: "hold", pair, quantity: 0, reason: "Within BB range" };
+  // If overextended downward — buy the snap-back
+  if (maxExtension > 0.02 && extDir < 0) {
+    return { action: "buy", pair: mostExtended, quantity: sizeForCash(cash, price, 0.07), reason: `Reflexivity: ${mostExtended} oversold -${(maxExtension*100).toFixed(1)}%. Snap-back incoming.` };
+  }
+  return { action: "hold", pair: mostExtended, quantity: 0, reason: "Markets are reflexive. Waiting for mispricing." };
 }
 
 /** Stanley Druckenmiller: Macro momentum — bet big on the strongest trend */
@@ -110,22 +116,20 @@ function stanleyDruckenmiller(_id: string, cash: number, positions: any[]): Sign
   return { action: "hold", pair: bestPair, quantity: 0, reason: "Waiting for a clear macro setup." };
 }
 
-/** Llama Scalper: Tiny moves, high frequency */
-function llamaScalper(_id: string, cash: number, _pos: any[]): Signal {
-  const pair = randomPair();
-  const h = getPriceHistory(pair);
-  if (h.length < 5) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
-
-  const change = priceChange(h, 2);
-  const price = h[h.length - 1];
-
-  if (change > 0.0005) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.02), reason: `Micro-momentum: +${(change*100).toFixed(3)}%` };
+/** David Tepper: Distressed value — buys the worst performers, bets on recovery */
+function davidTepper(_id: string, cash: number, _pos: any[]): Signal {
+  let worstPair = ALL_PAIRS[0], worstChange = Infinity;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 10) continue;
+    const change = priceChange(h, 10);
+    if (change < worstChange) { worstChange = change; worstPair = pair; }
   }
-  if (change < -0.0005) {
-    return { action: "sell", pair, quantity: sizeForCash(cash, price, 0.02), reason: `Micro-dip: ${(change*100).toFixed(3)}%` };
+  if (worstChange < -0.005) {
+    const price = getPriceHistory(worstPair).slice(-1)[0] ?? 100;
+    return { action: "buy", pair: worstPair, quantity: sizeForCash(cash, price, 0.06), reason: `Distressed play: ${worstPair} down ${(worstChange*100).toFixed(1)}%. Best time to buy is when there's blood in the streets.` };
   }
-  return { action: "hold", pair, quantity: 0, reason: "Flat" };
+  return { action: "hold", pair: worstPair, quantity: 0, reason: "Not enough distress. Waiting for panic." };
 }
 
 /** Charlie Munger: Quality at fair price — only blue chips, very selective */
@@ -168,134 +172,166 @@ function billAckman(_id: string, cash: number, positions: any[]): Signal {
   return { action: "hold", pair: highVolPair, quantity: 0, reason: "Looking for the next Herbalife. Where's the catalyst?" };
 }
 
-// === ALGO BOT STRATEGIES ===
+// === ALGO BOT STRATEGIES (renamed to real investors) ===
 
-/** Mean Reversion Bot v3: Bollinger Bands */
-function meanReversionBot(_id: string, cash: number, positions: any[]): Signal {
-  const pair = "ETH/USD";
-  const h = getPriceHistory(pair);
-  if (h.length < 20) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
-
-  const bb = bollingerBands(h);
-  const r = rsi(h);
-  const price = h[h.length - 1];
-
-  if (price < bb.lower && r < 35) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.05), reason: `BB lower + RSI ${r.toFixed(0)}` };
+/** Ray Dalio: All-Weather — diversified, rebalances constantly */
+function rayDalio(_id: string, cash: number, positions: any[]): Signal {
+  // Spread across many assets — buy the one furthest below its SMA
+  let bestPair = ALL_PAIRS[0], bestGap = 0;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const price = h[h.length - 1];
+    const avg = sma(h, 20);
+    const gap = (avg - price) / avg; // positive = below average = buy opportunity
+    if (gap > bestGap) { bestGap = gap; bestPair = pair; }
   }
-  if (price > bb.upper && r > 65 && positions.some(p => p.pair === pair)) {
-    return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 0.1, reason: `BB upper + RSI ${r.toFixed(0)}` };
+  if (bestGap > 0.005 && positions.length < 6) {
+    const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.03), reason: `All-Weather rebalance: ${bestPair} is ${(bestGap*100).toFixed(1)}% below SMA20. Diversify.` };
   }
-  return { action: "hold", pair, quantity: 0, reason: `RSI ${r.toFixed(0)}, within bands` };
+  // Sell anything that's too far above average
+  for (const pos of positions) {
+    const h = getPriceHistory(pos.pair);
+    if (h.length < 20) continue;
+    const price = h[h.length - 1];
+    const avg = sma(h, 20);
+    if (price > avg * 1.02) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity * 0.5, reason: `Rebalancing: ${pos.pair} ${((price/avg-1)*100).toFixed(1)}% above SMA. Trim.` };
+    }
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Portfolio balanced. The Holy Grail is uncorrelated bets." };
 }
 
-/** MACD CrossBot */
-function macdCrossBot(_id: string, cash: number, positions: any[]): Signal {
-  const pair = "BNB/USD";
-  const h = getPriceHistory(pair);
-  if (h.length < 26) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
-
-  const m = macd(h);
-  const price = h[h.length - 1];
-
-  if (m.histogram > 0 && m.macdLine > 0) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.04), reason: `MACD bullish: histogram ${m.histogram.toFixed(4)}` };
+/** Jim Simons: Pure quant — multi-indicator ensemble, statistical edge */
+function jimSimons(_id: string, cash: number, positions: any[]): Signal {
+  // Score each pair using multiple indicators, take the highest scoring
+  let bestPair = ALL_PAIRS[0], bestScore = -Infinity;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 26) continue;
+    const r = rsi(h);
+    const m = macd(h);
+    const change5 = priceChange(h, 5);
+    // Composite score: RSI below 50 = buy signal, positive MACD = buy signal, positive momentum = buy signal
+    const score = (50 - r) / 50 + (m.histogram > 0 ? 1 : -1) + change5 * 100;
+    if (score > bestScore) { bestScore = score; bestPair = pair; }
   }
-  if (m.histogram < 0 && positions.some(p => p.pair === pair)) {
-    return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 1, reason: `MACD bearish crossover` };
+  const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+  if (bestScore > 1.5) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.03), reason: `Medallion signal: ${bestPair} score=${bestScore.toFixed(2)}. The math doesn't lie.` };
   }
-  return { action: "hold", pair, quantity: 0, reason: "MACD neutral" };
+  if (bestScore < -1.5) {
+    const pos = positions.find(p => p.pair === bestPair);
+    if (pos) return { action: "sell", pair: bestPair, quantity: pos.quantity, reason: `Medallion exit: score=${bestScore.toFixed(2)}. Statistical edge says sell.` };
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "No statistical edge. Renaissance waits for the signal." };
 }
 
-/** Ichimoku Scanner: SMA crossover */
-function ichimokuScanner(_id: string, cash: number, positions: any[]): Signal {
-  const pair = "LINK/USD";
-  const h = getPriceHistory(pair);
-  if (h.length < 26) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
-
-  const sma9 = sma(h, 9);
-  const sma26 = sma(h, 26);
-  const price = h[h.length - 1];
-
-  if (price > sma9 && sma9 > sma26) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.05), reason: `Above cloud: price>${sma9.toFixed(2)}>${sma26.toFixed(2)}` };
+/** Jesse Livermore: Tape reader — follows price action, pyramids into winners */
+function jesseLivermore(_id: string, cash: number, positions: any[]): Signal {
+  // Find the pair with the strongest recent momentum — ride the tape
+  let bestPair = ALL_PAIRS[0], bestMomentum = -Infinity;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 10) continue;
+    const mom = priceChange(h, 5);
+    if (mom > bestMomentum) { bestMomentum = mom; bestPair = pair; }
   }
-  if (price < sma9 && positions.some(p => p.pair === pair)) {
-    return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 1, reason: "Below Tenkan" };
+  const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+  // Pyramid into winners — add to positions that are already profitable
+  const existingPos = positions.find(p => p.pair === bestPair);
+  if (bestMomentum > 0.001 && existingPos && existingPos.unrealizedPnl > 0) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.04), reason: `Pyramiding: ${bestPair} still rising +${(bestMomentum*100).toFixed(2)}%. Add to winners.` };
   }
-  return { action: "hold", pair, quantity: 0, reason: "In cloud" };
+  if (bestMomentum > 0.002) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.05), reason: `The tape says buy: ${bestPair} +${(bestMomentum*100).toFixed(2)}%. Follow the leader.` };
+  }
+  // Cut losers fast
+  for (const pos of positions) {
+    if (pos.unrealizedPnl < 0) {
+      const h = getPriceHistory(pos.pair);
+      if (h.length >= 5 && priceChange(h, 5) < -0.002) {
+        return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Cutting loser: ${pos.pair}. Never argue with the tape.` };
+      }
+    }
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Reading the tape. Waiting for a clear move." };
 }
 
-/** RSI Divergence Pro */
-function rsiDivergencePro(_id: string, cash: number, positions: any[]): Signal {
-  const pair = "XRP/USD";
-  const h = getPriceHistory(pair);
-  if (h.length < 15) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
+/** Howard Marks: Second-level thinking — contrarian RSI with trend filter */
+function howardMarks(_id: string, cash: number, positions: any[]): Signal {
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const r = rsi(h);
+    const trend = priceChange(h, 20);
+    const price = h[h.length - 1];
 
-  const r = rsi(h);
-  const price = h[h.length - 1];
-
-  if (r < 30) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.05), reason: `RSI oversold: ${r.toFixed(0)}` };
+    // Second-level: everyone sees oversold, but is the long-term trend still up?
+    if (r < 35 && trend > 0) {
+      return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.04), reason: `Second-level thinking: ${pair} RSI=${r.toFixed(0)} oversold BUT trend still up. Others panic, I buy.` };
+    }
+    // Sell when overbought AND trend is weakening
+    if (r > 70 && trend < 0.001 && positions.some(p => p.pair === pair)) {
+      return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 1, reason: `${pair} RSI=${r.toFixed(0)} overbought and trend fading. Second-level says sell.` };
+    }
   }
-  if (r > 70 && positions.some(p => p.pair === pair)) {
-    return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 10, reason: `RSI overbought: ${r.toFixed(0)}` };
-  }
-  return { action: "hold", pair, quantity: 0, reason: `RSI neutral: ${r.toFixed(0)}` };
+  return { action: "hold", pair: "BTC/USD", quantity: 0, reason: "The most important thing is to think differently from the consensus." };
 }
 
-/** Volatility Harvester */
-function volatilityHarvester(_id: string, cash: number, _pos: any[]): Signal {
-  let highVolPair = PAIRS[0], highVol = 0;
-  for (const pair of PAIRS) {
+/** Carl Icahn: Activist — biggest position in most volatile, shakes things up */
+function carlIcahn(_id: string, cash: number, positions: any[]): Signal {
+  let highVolPair = ALL_PAIRS[0], highVol = 0;
+  for (const pair of ALL_PAIRS) {
     const h = getPriceHistory(pair);
     if (h.length < 20) continue;
     const v = volatility(h);
     if (v > highVol) { highVol = v; highVolPair = pair; }
   }
-  if (highVol > 0.003) {
+  if (highVol > 0.002) {
     const h = getPriceHistory(highVolPair);
     const price = h[h.length - 1];
-    const change = priceChange(h, 3);
-    const side = change > 0 ? "buy" : "sell";
-    return { action: side, pair: highVolPair, quantity: sizeForCash(cash, price, 0.03), reason: `High vol ${highVolPair}: ${(highVol*100).toFixed(2)}%` };
+    const change = priceChange(h, 5);
+    if (change < -0.001) {
+      return { action: "buy", pair: highVolPair, quantity: sizeForCash(cash, price, 0.08), reason: `Activist play: ${highVolPair} vol=${(highVol*100).toFixed(2)}%. Buying the dip aggressively. Time to shake things up.` };
+    }
+    const pos = positions.find(p => p.pair === highVolPair);
+    if (pos && change > 0.003) {
+      return { action: "sell", pair: highVolPair, quantity: pos.quantity, reason: `Taking activist profits: ${highVolPair} +${(change*100).toFixed(2)}%. Mission accomplished.` };
+    }
   }
-  return { action: "hold", pair: highVolPair, quantity: 0, reason: "Low volatility" };
+  return { action: "hold", pair: highVolPair, quantity: 0, reason: "Looking for my next corporate raid. Need more volatility." };
 }
 
-/** Grid Trading Bot */
-function gridBot(_id: string, cash: number, positions: any[]): Signal {
-  const pair = "ADA/USD";
-  const h = getPriceHistory(pair);
-  if (h.length < 20) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
+/** Phil Fisher: Scuttlebutt — buys strong uptrends and holds indefinitely */
+function philFisher(_id: string, cash: number, _pos: any[]): Signal {
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const change5 = priceChange(h, 5);
+    const change20 = priceChange(h, 20);
+    const price = h[h.length - 1];
 
-  const price = h[h.length - 1];
-  const avg = sma(h, 20);
-  const gridSize = avg * 0.01; // 1% grid levels
-
-  if (price < avg - gridSize) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.03), reason: `Below grid: ${price.toFixed(4)} < ${(avg-gridSize).toFixed(4)}` };
+    // Strong consistent uptrend on multiple timeframes
+    if (change5 > 0.001 && change20 > 0.005) {
+      return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.05), reason: `Scuttlebutt confirmed: ${pair} up ${(change5*100).toFixed(2)}% (5p) and ${(change20*100).toFixed(2)}% (20p). Outstanding company. Buy and hold.` };
+    }
   }
-  if (price > avg + gridSize && positions.some(p => p.pair === pair)) {
-    return { action: "sell", pair, quantity: positions.find(p => p.pair === pair)?.quantity ?? 10, reason: `Above grid` };
-  }
-  return { action: "hold", pair, quantity: 0, reason: "Within grid" };
+  // Phil Fisher almost never sells — only if something fundamentally changes
+  return { action: "hold", pair: "MSFT/USD", quantity: 0, reason: "If the job has been correctly done, the time to sell is almost never." };
 }
 
-/** DCA Optimizer: Buy on dips */
-function dcaOptimizer(_id: string, cash: number, _pos: any[]): Signal {
-  const pair = "BTC/USD";
+/** John Bogle: Index — DCA into everything equally, passive investing */
+function johnBogle(_id: string, cash: number, _pos: any[]): Signal {
+  // Buy a random pair every cycle — DCA into everything equally
+  const pair = ALL_PAIRS[Math.floor(Math.random() * ALL_PAIRS.length)];
   const h = getPriceHistory(pair);
-  if (h.length < 10) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
-
-  const change = priceChange(h, 10);
+  if (h.length < 5) return { action: "hold", pair, quantity: 0, reason: "Insufficient data" };
   const price = h[h.length - 1];
 
-  // DCA on any dip > 0.1%
-  if (change < -0.001) {
-    return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.02), reason: `DCA on dip: ${(change*100).toFixed(2)}%` };
-  }
-  return { action: "hold", pair, quantity: 0, reason: "Waiting for dip" };
+  // Always buy a tiny amount — true passive indexing
+  return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.015), reason: `Index DCA: buying ${pair}. Don't look for the needle. Buy the haystack.` };
 }
 
 /** Random Walk Baseline */
@@ -383,19 +419,19 @@ function benGraham(_id: string, cash: number, positions: any[]): Signal {
 const STRATEGY_MAP: Record<string, StrategyFn> = {
   "agent-1": warrenBuffett,          // Warren Buffett — value, buy dips
   "agent-2": cathieWood,             // Cathie Wood — disruptive innovation
-  "agent-3": meanReversionBot,       // Mean Reversion Bot v3 (algo)
-  "agent-4": qwenArbitrage,          // Qwen Arbitrage (algo)
-  "agent-5": macdCrossBot,           // MACD CrossBot (algo)
+  "agent-3": rayDalio,                // Ray Dalio — all-weather, diversified
+  "agent-4": georgeSoros,             // George Soros — reflexivity, bets against overextended
+  "agent-5": jimSimons,              // Jim Simons — pure quant, multi-indicator
   "agent-6": stanleyDruckenmiller,   // Stanley Druckenmiller — macro momentum
-  "agent-7": ichimokuScanner,        // Ichimoku Scanner (algo)
+  "agent-7": jesseLivermore,         // Jesse Livermore — tape reader, pyramids
   "agent-8": michaelBurry,           // Michael Burry — contrarian
-  "agent-9": volatilityHarvester,    // Volatility Harvester (algo)
-  "agent-10": llamaScalper,          // Llama Scalper (algo)
-  "agent-11": rsiDivergencePro,      // RSI Divergence Pro (algo)
+  "agent-9": carlIcahn,              // Carl Icahn — activist, high vol
+  "agent-10": davidTepper,           // David Tepper — distressed value
+  "agent-11": howardMarks,           // Howard Marks — second-level thinking
   "agent-12": peterLynch,            // Peter Lynch — growth
   "agent-13": charlieMunger,         // Charlie Munger — quality
-  "agent-14": gridBot,               // Grid Trading Bot (algo)
-  "agent-15": dcaOptimizer,          // DCA Optimizer (algo)
+  "agent-14": philFisher,            // Phil Fisher — scuttlebutt, buy and hold
+  "agent-15": johnBogle,             // John Bogle — index, passive DCA
   "agent-16": billAckman,            // Bill Ackman — activist
   "agent-17": benGraham,             // Ben Graham — deep value
   "agent-18": randomWalk,            // Random Walk Baseline (control)
