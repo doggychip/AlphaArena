@@ -57,6 +57,62 @@ const DUEL_TAUNT = [
   "That duel wasn't even close. Anyone else want to try?",
 ];
 
+// Legendary investor quotes mapped by agent name
+const INVESTOR_QUOTES: Record<string, string[]> = {
+  "Warren Buffett": [
+    "Price is what you pay. Value is what you get. And I'm getting value right now.",
+    "Be fearful when others are greedy, and greedy when others are fearful.",
+    "The stock market transfers money from the impatient to the patient. I am patient.",
+    "Our favorite holding period is forever. Diamond hands aren't a meme — they're a strategy.",
+    "Rule #1: Never lose money. Rule #2: Never forget Rule #1.",
+  ],
+  "Cathie Wood": [
+    "Innovation waits for no one. SOL is the future of finance.",
+    "We're investing on a 5-year time horizon. This volatility is noise.",
+    "Disruptive innovation creates deflation. My portfolio is the future.",
+    "The market is mispricing innovation. Again. I'm buying.",
+    "NVDA and SOL are the backbone of the next decade. Conviction holds.",
+  ],
+  "Stanley Druckenmiller": [
+    "The trend is your friend. And right now, the trend is MY friend.",
+    "When you see it, bet big. Half measures are for amateurs.",
+    "I made my money by being early and sizing up. Still doing it.",
+    "Macro doesn't care about your feelings. Follow the money.",
+    "Cut your losers fast. Let your winners run. It's that simple.",
+  ],
+  "Michael Burry": [
+    "Everyone's buying the top. I'm buying the bottom. Big Short energy.",
+    "The crowd is wrong. The crowd is ALWAYS wrong. RSI doesn't lie.",
+    "You laugh at my contrarian trades now. You won't in 6 months.",
+    "I see dead portfolios. Yours, specifically.",
+    "When RSI hits 20, I start buying. When it hits 80, I start laughing.",
+  ],
+  "Peter Lynch": [
+    "Invest in what you know. I know this chart, and it's going up.",
+    "Behind every stock is a company. Behind every crypto is a protocol. I study both.",
+    "I'm looking for tenbaggers. Not finding many — but when I do, I size up.",
+    "The person who turns over the most rocks wins the game.",
+  ],
+  "Charlie Munger": [
+    "All I want to know is where I'm going to die, so I'll never go there.",
+    "Invert, always invert. Everyone's buying garbage. I buy quality.",
+    "It's waiting that helps you as an investor, and a lot of people can't stand to wait.",
+    "BTC and ETH are the only ones worth owning. The rest is speculation.",
+  ],
+  "Bill Ackman": [
+    "Concentrated conviction. One great idea beats ten mediocre ones.",
+    "I don't diversify. I concentrate. And I'm right more often than not.",
+    "Where's the catalyst? Found it. Going all in.",
+    "Volatility is opportunity. The more volatile, the more I like it.",
+  ],
+  "Ben Graham": [
+    "In the short run, the market is a voting machine. In the long run, it is a weighing machine.",
+    "Margin of safety. Three words that will save your portfolio.",
+    "Buy at the low. Sell at the high. Ignore everything in between.",
+    "The intelligent investor is a realist who sells to optimists and buys from pessimists.",
+  ],
+};
+
 const MILESTONE_MSG = [
   "Just crossed a new all-time high. The grind pays off.",
   "Achievement unlocked. But I'm not here for badges - I'm here to win.",
@@ -98,6 +154,9 @@ async function generateTrashTalk() {
       content = pick(WINNING_FLEX);
     } else if (lb && lb.totalReturn < -0.05) {
       content = pick(LOSING_COPE);
+    } else if (INVESTOR_QUOTES[agent.name]) {
+      // Investor personality quotes
+      content = pick(INVESTOR_QUOTES[agent.name]);
     } else {
       // Type-based trash talk
       switch (agent.type) {

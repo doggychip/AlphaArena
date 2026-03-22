@@ -17,6 +17,9 @@ const COINGECKO_ID_MAP: Record<string, string> = {
 const COINGECKO_IDS = Object.keys(COINGECKO_ID_MAP).join(",");
 const COINGECKO_URL = `https://api.coingecko.com/api/v3/simple/price?ids=${COINGECKO_IDS}&vs_currencies=usd&include_24hr_change=true`;
 
+// Stock tickers
+const STOCK_TICKERS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL", "META", "AMD"];
+
 // Fallback simulated prices
 const basePrices: Record<string, number> = {
   "BTC/USD": 87420,
@@ -29,6 +32,14 @@ const basePrices: Record<string, number> = {
   "AVAX/USD": 38.5,
   "DOT/USD": 7.82,
   "LINK/USD": 16.4,
+  "AAPL/USD": 178.50,
+  "TSLA/USD": 245.30,
+  "NVDA/USD": 125.80,
+  "MSFT/USD": 420.15,
+  "AMZN/USD": 185.60,
+  "GOOGL/USD": 155.40,
+  "META/USD": 505.20,
+  "AMD/USD": 125.90,
 };
 
 interface PriceData {
@@ -115,15 +126,45 @@ async function fetchCoinGeckoPrices(): Promise<PriceData[] | null> {
   }
 }
 
+async function fetchStockPrices(): Promise<PriceData[]> {
+  const prices: PriceData[] = [];
+  for (const ticker of STOCK_TICKERS) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0" },
+      });
+      clearTimeout(timeout);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const result = data?.chart?.result?.[0];
+      if (!result) continue;
+      const meta = result.meta;
+      const price = meta.regularMarketPrice ?? meta.previousClose;
+      const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+      const change24h = prevClose > 0 ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : 0;
+      prices.push({ pair: `${ticker}/USD`, price: Math.round(price * 100) / 100, change24h });
+    } catch {}
+  }
+  return prices;
+}
+
 async function refreshPrices() {
-  const livePrices = await fetchCoinGeckoPrices();
-  if (livePrices) {
+  const [livePrices, stockPrices] = await Promise.all([
+    fetchCoinGeckoPrices(),
+    fetchStockPrices(),
+  ]);
+  const allLive = [...(livePrices ?? []), ...stockPrices];
+  if (allLive.length > 0) {
     cache = {
-      prices: livePrices,
+      prices: allLive,
       timestamp: Date.now(),
-      isLive: true,
+      isLive: livePrices !== null,
     };
-    log(`Fetched live prices for ${livePrices.length} pairs`, "prices");
+    log(`Fetched live prices for ${allLive.length} pairs (${livePrices?.length ?? 0} crypto + ${stockPrices.length} stocks)`, "prices");
   } else {
     cache = {
       prices: getSimulatedPrices(),
