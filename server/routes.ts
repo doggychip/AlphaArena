@@ -597,6 +597,42 @@ export async function registerRoutes(
     }
   });
 
+  // === SHARE CARDS ===
+  app.get("/api/share/challenge/:id", async (req, res) => {
+    try {
+      const challenges = await storage.getResolvedChallenges("");
+      // Search all resolved challenges for this ID
+      const ch = challenges.find((c: any) => c.id === req.params.id);
+      if (!ch) return res.status(404).json({ error: "Challenge not found" });
+      const won = ch.userWon;
+      const emoji = won ? "🏆" : "📉";
+      const text = won
+        ? `${emoji} I beat ${ch.agentName} on ${ch.pair}! My prediction was right — ${((ch.pnlPct ?? 0) * 100).toFixed(1)}% in 24h. Can you do better?`
+        : `${emoji} ${ch.agentName} beat me on ${ch.pair}. The legend's strategy won this round. Challenge them yourself!`;
+      const url = `https://alphaarena.zeabur.app/#/challenge`;
+      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text + "\n\n" + url)}`;
+      res.json({ text, shareUrl, url });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/share/profile", async (req, res) => {
+    try {
+      const profile = req.query.type as string;
+      const profiles: Record<string, string> = {
+        value: "Value Investor (like Warren Buffett)",
+        momentum: "Momentum Trader (like Stanley Druckenmiller)",
+        contrarian: "Contrarian (like George Soros)",
+        quant: "Quantitative Analyst (like Jim Simons)",
+        activist: "Activist Investor (like Bill Ackman)",
+      };
+      const name = profiles[profile] ?? "Investor";
+      const text = `🧠 I took the AlphaArena Investor Profile Quiz and I'm a ${name}! What's your trading personality?`;
+      const url = `https://alphaarena.zeabur.app/#/quiz`;
+      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text + "\n\n" + url)}`;
+      res.json({ text, shareUrl, url });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === CHALLENGES (Challenge a Legend) ===
   app.post("/api/challenges", async (req, res) => {
     try {
