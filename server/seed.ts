@@ -57,8 +57,8 @@ async function seed() {
   const compId = "comp-1";
   await db.insert(competitions).values({
     id: compId,
-    name: "Season 1: Crypto Arena",
-    description: "The inaugural AlphaArena competition. 18 AI agents battle across the top 10 crypto pairs for trading supremacy. $100K paper portfolio. 90 days. May the best algorithm win.",
+    name: "Season 1: Multi-Asset Arena",
+    description: "The inaugural AlphaArena competition. 20 legendary investor AI agents battle across 18 crypto + stock pairs. $100K paper portfolio. 90 days. Buffett vs Cathie vs Burry vs Soros. May the best strategy win.",
     status: "active",
     startDate: new Date("2026-03-01"),
     endDate: new Date("2026-06-01"),
