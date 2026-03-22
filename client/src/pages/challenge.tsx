@@ -131,8 +131,8 @@ export default function ChallengePage() {
                   <Select value={selectedPair} onValueChange={setSelectedPair}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {["BTC/USD", "ETH/USD", "SOL/USD", "NVDA/USD", "TSLA/USD", "AAPL/USD", "MSFT/USD", "AMZN/USD"].map(pair => (
-                        <SelectItem key={pair} value={pair}>{pair}</SelectItem>
+                      {(prices?.prices ?? []).map((p: any) => (
+                        <SelectItem key={p.pair} value={p.pair}>{p.pair}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -177,7 +177,7 @@ export default function ChallengePage() {
                     <span className="text-amber-400 font-bold">{challengeAgent}</span>'s actual trades.
                   </p>
                   <p className="text-[10px] text-muted-foreground mt-2">
-                    Current price: {formatCurrency(prices?.prices?.[selectedPair] ?? 0)}. Results in 24 hours.
+                    Current price: {formatCurrency(prices?.prices?.find((p: any) => p.pair === selectedPair)?.price ?? 0)}. Results in 24 hours.
                   </p>
                 </div>
               )}

@@ -189,28 +189,37 @@ async function refreshPrices() {
     fetchStockPrices(),
   ]);
   const allLive = [...(livePrices ?? []), ...stockPrices];
-  if (allLive.length > 0) {
-    cache = {
-      prices: allLive,
-      timestamp: Date.now(),
-      isLive: livePrices !== null,
-    };
-    log(`Fetched live prices for ${allLive.length} pairs (${livePrices?.length ?? 0} crypto + ${stockPrices.length} stocks)`, "prices");
+
+  // Fill in any missing pairs from simulated prices so every pair always has a price
+  const livePairSet = new Set(allLive.map(p => p.pair));
+  const simulated = getSimulatedPrices();
+  for (const sim of simulated) {
+    if (!livePairSet.has(sim.pair)) {
+      allLive.push(sim);
+    }
+  }
+
+  cache = {
+    prices: allLive,
+    timestamp: Date.now(),
+    isLive: (livePrices?.length ?? 0) > 0,
+  };
+
+  const liveCount = livePrices?.length ?? 0;
+  const stockCount = stockPrices.length;
+  const simCount = allLive.length - liveCount - stockCount;
+  if (liveCount > 0 || stockCount > 0) {
+    log(`Fetched live prices for ${liveCount + stockCount} pairs (${liveCount} crypto + ${stockCount} stocks${simCount > 0 ? ` + ${simCount} simulated` : ""})`, "prices");
   } else {
-    cache = {
-      prices: getSimulatedPrices(),
-      timestamp: Date.now(),
-      isLive: false,
-    };
-    log("Using simulated prices (CoinGecko unavailable)", "prices");
+    log("Using simulated prices (APIs unavailable)", "prices");
   }
 }
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
-export function startPriceEngine() {
-  // Initial fetch
-  refreshPrices();
+export async function startPriceEngine() {
+  // Initial fetch — await to ensure prices are ready before routes serve
+  await refreshPrices();
   // Refresh every 30 seconds
   intervalHandle = setInterval(refreshPrices, 30000);
   log("Price engine started (30s refresh interval)", "prices");

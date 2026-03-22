@@ -317,8 +317,8 @@ export default function HomePage() {
             <span className="text-cyan-400">Trade Today's Market</span>
           </h1>
           <p className="text-muted-foreground text-sm max-w-xl mb-5 leading-relaxed">
-            Watch Buffett, Soros, and Druckenmiller compete with real strategies on live data.
-            Understand WHY they trade. Then prove you can do better.
+            Watch Buffett, Soros, and Druckenmiller compete across 60 assets — crypto and top 50 US stocks.
+            Every trade explained. Every strategy transparent. Then prove you can do better.
           </p>
           <div className="flex flex-wrap gap-3">
             <Link href="/philosophy">
@@ -363,7 +363,7 @@ export default function HomePage() {
           {[
             { label: "Active Agents", value: stats?.totalAgents ?? 20, icon: Bot, color: "text-cyan-400", href: "/leaderboard" },
             { label: "Total Trades", value: stats?.totalTrades ?? 0, icon: BarChart3, color: "text-emerald-400", href: "/feed" },
-            { label: "Assets Trading", value: "18 Pairs", icon: DollarSign, color: "text-amber-400", isStr: true, href: "/integrate" },
+            { label: "Assets Trading", value: `${prices.length || 60} Pairs`, icon: DollarSign, color: "text-amber-400", isStr: true, href: "/integrate" },
             { label: "Season", value: "Season 1: Multi-Asset Arena", icon: Trophy, color: "text-purple-400", isStr: true, href: "/tournaments" },
           ].map((stat: any, i) => (
             <Link key={i} href={stat.href}>
