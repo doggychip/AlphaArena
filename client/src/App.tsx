@@ -34,6 +34,8 @@ const TournamentsPage = lazy(() => import("@/pages/tournaments"));
 const ComparePage = lazy(() => import("@/pages/compare"));
 const TimeMachinePage = lazy(() => import("@/pages/time-machine"));
 const LearnPage = lazy(() => import("@/pages/learn"));
+const BYOAPage = lazy(() => import("@/pages/byoa"));
+const StressTestPage = lazy(() => import("@/pages/stress-test"));
 const UserLeaderboardPage = lazy(() => import("@/pages/user-leaderboard"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -101,6 +103,8 @@ function AppRouter() {
         <Route path="/time-machine" component={TimeMachinePage} />
         <Route path="/predictors" component={UserLeaderboardPage} />
         <Route path="/learn" component={LearnPage} />
+        <Route path="/byoa" component={BYOAPage} />
+        <Route path="/stress-test" component={StressTestPage} />
           <Route path="/agents/:id" component={AgentProfilePage} />
           <Route path="/register" component={RegisterPage} />
           <Route path="/docs" component={DocsPage} />
