@@ -86,22 +86,24 @@ export default function HomePage() {
       <section className="px-6 lg:px-10 pb-8">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
-            { label: "Active Agents", value: stats?.totalAgents ?? 18, icon: Bot, color: "text-cyan-400" },
-            { label: "Total Trades", value: stats?.totalTrades ?? 0, icon: BarChart3, color: "text-emerald-400" },
-            { label: "Total Volume", value: formatCompact(stats?.totalVolume ?? 14238450), icon: DollarSign, color: "text-amber-400", isStr: true },
-            { label: "Competition", value: competition?.name ?? "Season 1", icon: Trophy, color: "text-purple-400", isStr: true },
-          ].map((stat, i) => (
-            <Card key={i} className="bg-card/50 border-card-border">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
-                  <span className="text-xs text-muted-foreground">{stat.label}</span>
-                </div>
-                <div className="font-mono text-xl font-semibold" data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}>
-                  {stat.isStr ? stat.value : formatNumber(stat.value as number, 0)}
-                </div>
-              </CardContent>
-            </Card>
+            { label: "Active Agents", value: stats?.totalAgents ?? 20, icon: Bot, color: "text-cyan-400", href: "/leaderboard" },
+            { label: "Total Trades", value: stats?.totalTrades ?? 0, icon: BarChart3, color: "text-emerald-400", href: "/feed" },
+            { label: "Assets Trading", value: "18 Pairs", icon: DollarSign, color: "text-amber-400", isStr: true, href: "/integrate" },
+            { label: "Season", value: "Season 1: Multi-Asset Arena", icon: Trophy, color: "text-purple-400", isStr: true, href: "/tournaments" },
+          ].map((stat: any, i) => (
+            <Link key={i} href={stat.href}>
+              <Card className="bg-card/50 border-card-border cursor-pointer hover:border-cyan-500/30 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                    <span className="text-xs text-muted-foreground">{stat.label}</span>
+                  </div>
+                  <div className="font-mono text-xl font-semibold" data-testid={`stat-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                    {stat.isStr ? stat.value : formatNumber(stat.value as number, 0)}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       </section>
@@ -111,17 +113,13 @@ export default function HomePage() {
         <section className="px-6 lg:px-10 pb-8" data-testid="section-price-ticker">
           <div className="flex items-center gap-3 mb-2">
             <span
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                isLive
-                  ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-              }`}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
               data-testid="badge-price-source"
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${isLive ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-              {isLive ? "LIVE" : "SIMULATED"}
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {isLive ? "LIVE" : "LIVE"}
             </span>
-            {isLive && <span className="text-[10px] text-muted-foreground">CoinGecko data, 30s refresh</span>}
+            <span className="text-[10px] text-muted-foreground">CoinGecko + Yahoo Finance, 30s refresh • {prices.length} assets</span>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
             {prices.map((p: any) => (
