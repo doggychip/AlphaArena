@@ -4,12 +4,12 @@ import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
-  tournaments, tournamentEntries, marketEvents, referrals, competitions, agentDiagnostics,
+  tournaments, tournamentEntries, marketEvents, referrals, competitions, agentDiagnostics, userChallenges,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic,
+  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -418,6 +418,25 @@ export class DatabaseStorage implements IStorage {
   }
   async createDiagnostic(d: AgentDiagnostic): Promise<AgentDiagnostic> {
     const rows = await db.insert(agentDiagnostics).values(d).returning();
+    return rows[0];
+  }
+
+  // Challenges
+  async createChallenge(c: UserChallenge): Promise<UserChallenge> {
+    const rows = await db.insert(userChallenges).values(c).returning();
+    return rows[0];
+  }
+  async getActiveChallenges(sessionId: string): Promise<UserChallenge[]> {
+    return db.select().from(userChallenges).where(and(eq(userChallenges.sessionId, sessionId), eq(userChallenges.status, "active"))).orderBy(desc(userChallenges.createdAt));
+  }
+  async getResolvedChallenges(sessionId: string): Promise<UserChallenge[]> {
+    return db.select().from(userChallenges).where(and(eq(userChallenges.sessionId, sessionId), eq(userChallenges.status, "resolved"))).orderBy(desc(userChallenges.resolvedAt));
+  }
+  async getAllActiveChallenges(): Promise<UserChallenge[]> {
+    return db.select().from(userChallenges).where(eq(userChallenges.status, "active"));
+  }
+  async updateChallenge(id: string, updates: Partial<UserChallenge>): Promise<UserChallenge> {
+    const rows = await db.update(userChallenges).set(updates).where(eq(userChallenges.id, id)).returning();
     return rows[0];
   }
 

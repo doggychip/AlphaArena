@@ -10,7 +10,7 @@ export interface TradeResult {
   error?: string;
 }
 
-export async function executeTrade(agentId: string, pair: string, side: "buy" | "sell", quantity: number): Promise<TradeResult> {
+export async function executeTrade(agentId: string, pair: string, side: "buy" | "sell", quantity: number, reason?: string): Promise<TradeResult> {
   try {
     const currentPrice = getPriceForPair(pair);
     if (!currentPrice) return { success: false, error: `No price for ${pair}` };
@@ -39,6 +39,7 @@ export async function executeTrade(agentId: string, pair: string, side: "buy" | 
       price: executionPrice,
       totalValue: Math.round(totalValue * 100) / 100,
       fee,
+      reason: reason ?? null,
       executedAt: new Date(),
     });
 
