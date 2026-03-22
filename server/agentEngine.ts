@@ -414,6 +414,82 @@ function benGraham(_id: string, cash: number, positions: any[]): Signal {
   return { action: "hold", pair: "AAPL/USD", quantity: 0, reason: "In the short run, the market is a voting machine. In the long run, it is a weighing machine." };
 }
 
+// === COMMUNITY AGENTS ===
+
+/** OpenClaw Alpha: Open-source community agent — adaptive multi-indicator ensemble */
+function openclawAlpha(_id: string, cash: number, positions: any[]): Signal {
+  // Crowdsourced strategy: score every pair using RSI + momentum + Bollinger + volatility
+  let bestPair = ALL_PAIRS[0], bestScore = -Infinity;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const r = rsi(h);
+    const mom = priceChange(h, 10);
+    const bb = bollingerBands(h);
+    const vol = volatility(h);
+    const price = h[h.length - 1];
+
+    // Composite: oversold RSI + positive momentum + near lower band + moderate vol
+    let score = 0;
+    score += (50 - r) / 25;                          // RSI: lower = better buy
+    score += mom * 200;                               // Momentum: positive = good
+    score += (bb.middle - price) / bb.middle * 10;    // Below middle band = good
+    score += vol > 0.001 && vol < 0.01 ? 1 : 0;      // Moderate vol preferred
+
+    if (score > bestScore) { bestScore = score; bestPair = pair; }
+  }
+  const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+
+  if (bestScore > 2.0) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.05), reason: `Open-source signal: ${bestPair} composite=${bestScore.toFixed(2)}. Community consensus says buy. The lobster way. 🦞` };
+  }
+  // Sell positions with negative composite score
+  for (const pos of positions) {
+    const h = getPriceHistory(pos.pair);
+    if (h.length < 15) continue;
+    const r = rsi(h);
+    if (r > 70 && priceChange(h, 5) < -0.001) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Open-source exit: ${pos.pair} RSI=${r.toFixed(0)}, momentum fading. Community says trim. 🦞` };
+    }
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Open-source analysis in progress. The lobster is thinking. 🦞" };
+}
+
+/** zhihuiti Alpha: zhihuiti backbone agent — meta-strategy that adapts */
+function zhihuitiAlpha(_id: string, cash: number, positions: any[]): Signal {
+  // zhihuiti's meta-strategy: combine the best of all strategies
+  // Buys when multiple indicators align, sells when they diverge
+  let buySignals = 0, sellSignals = 0;
+  let targetPair = "BTC/USD";
+  let targetPrice = 0;
+
+  for (const pair of ALL_PAIRS.slice(0, 10)) { // Focus on top 10
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const r = rsi(h);
+    const mom = priceChange(h, 10);
+    const m = macd(h);
+    const price = h[h.length - 1];
+
+    if (r < 40 && mom > 0 && m.histogram > 0) {
+      buySignals++;
+      if (buySignals === 1) { targetPair = pair; targetPrice = price; }
+    }
+    if (r > 65 && mom < 0 && m.histogram < 0) {
+      sellSignals++;
+    }
+  }
+
+  if (buySignals >= 3) {
+    return { action: "buy", pair: targetPair, quantity: sizeForCash(cash, targetPrice || 100, 0.05), reason: `zhihuiti consensus: ${buySignals} pairs showing buy alignment. Multi-agent agreement. 智慧体` };
+  }
+  if (sellSignals >= 3) {
+    const pos = positions[0];
+    if (pos) return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `zhihuiti consensus: ${sellSignals} pairs bearish. Reducing exposure. 智慧体` };
+  }
+  return { action: "hold", pair: targetPair, quantity: 0, reason: "zhihuiti agents analyzing. Waiting for multi-agent consensus. 智慧体" };
+}
+
 // === STRATEGY REGISTRY ===
 
 const STRATEGY_MAP: Record<string, StrategyFn> = {
@@ -435,6 +511,8 @@ const STRATEGY_MAP: Record<string, StrategyFn> = {
   "agent-16": billAckman,            // Bill Ackman — activist
   "agent-17": benGraham,             // Ben Graham — deep value
   "agent-18": randomWalk,            // Random Walk Baseline (control)
+  "agent-openclaw": openclawAlpha,   // OpenClaw — open-source community agent
+  "agent-zhihuiti": zhihuitiAlpha,   // zhihuiti — backbone meta-strategy
 };
 
 export function getStrategy(agentId: string): StrategyFn | undefined {

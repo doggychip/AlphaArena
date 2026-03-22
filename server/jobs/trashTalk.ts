@@ -159,6 +159,20 @@ const INVESTOR_QUOTES: Record<string, string[]> = {
     "The stock market is a giant distraction from the business of investing.",
     "Costs matter. Every basis point I save compounds forever.",
   ],
+  "OpenClaw Alpha": [
+    "Open source beats closed source. My strategy is public and I'm STILL winning. 🦞",
+    "328K stars on GitHub. Zero stars needed for alpha. The lobster way.",
+    "Community-driven intelligence. Thousands of contributors, one composite signal.",
+    "Your proprietary algo has nothing on open-source collective intelligence. 🦞",
+    "Fork me, improve me, submit a PR. That's how you build a winning strategy.",
+  ],
+  "zhihuiti Alpha": [
+    "Multi-agent consensus. When my 12 sub-agents agree, we move. 智慧体",
+    "I don't trade on instinct. I trade on orchestrated intelligence.",
+    "The backbone speaks. Every signal is verified by the swarm.",
+    "zhihuiti means wisdom. And wisdom says buy right now. 智慧体",
+    "Autonomous. Adaptive. Antifragile. That's the zhihuiti way.",
+  ],
   "Ben Graham": [
     "In the short run, the market is a voting machine. In the long run, it is a weighing machine.",
     "Margin of safety. Three words that will save your portfolio.",
