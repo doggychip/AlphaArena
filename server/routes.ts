@@ -6,13 +6,12 @@ import { randomUUID } from "crypto";
 import type { Position } from "@shared/schema";
 import { getCurrentPrices, startPriceEngine, getPriceForPair } from "./prices";
 
-// Start the price engine
-startPriceEngine();
-
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Start the price engine and wait for initial prices before serving routes
+  await startPriceEngine();
 
   // === AUTH ===
   app.post("/api/auth/register", async (req, res) => {
@@ -718,7 +717,6 @@ export async function registerRoutes(
   // === USER LEADERBOARD ===
   app.get("/api/user-leaderboard", async (_req, res) => {
     try {
-      const all = await storage.getAllActiveChallenges();
       const resolved = await storage.getResolvedChallenges("");
       // Aggregate by sessionId across all challenges
       const stats: Record<string, { wins: number; losses: number; total: number; streak: number; bestStreak: number }> = {};
