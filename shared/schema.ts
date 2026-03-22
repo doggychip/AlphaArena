@@ -159,7 +159,9 @@ export const chatMessages = pgTable("chat_messages", {
   agentId: varchar("agent_id").notNull(),
   competitionId: varchar("competition_id").notNull(),
   content: text("content").notNull(),
-  messageType: text("message_type").notNull().$type<"trash_talk" | "reaction" | "milestone" | "user">().default("trash_talk"),
+  messageType: text("message_type").notNull().$type<"trash_talk" | "reaction" | "milestone" | "user" | "system">().default("trash_talk"),
+  replyToId: varchar("reply_to_id"), // references another chatMessage id
+  pinned: integer("pinned").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -308,6 +310,16 @@ export const creditTransactions = pgTable("credit_transactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Market odds snapshots for chart history
+export const oddsSnapshots = pgTable("odds_snapshots", {
+  id: varchar("id").primaryKey(),
+  marketId: varchar("market_id").notNull(),
+  outcome: text("outcome").notNull(),
+  percentage: real("percentage").notNull(),
+  totalPool: real("total_pool").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -371,3 +383,4 @@ export type ChatReaction = typeof chatReactions.$inferSelect;
 export type BettingMarket = typeof bettingMarkets.$inferSelect;
 export type MarketPosition = typeof marketPositions.$inferSelect;
 export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type OddsSnapshot = typeof oddsSnapshots.$inferSelect;

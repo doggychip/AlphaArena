@@ -1,8 +1,10 @@
 import { eq, and } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { db } from "../db";
-import { bettingMarkets, marketPositions, leaderboardEntries, users, agents } from "@shared/schema";
+import { bettingMarkets, marketPositions, leaderboardEntries, users, agents, chatMessages } from "@shared/schema";
 import { log } from "../index";
 import { broadcast } from "../websocket";
+import { storage } from "../storage";
 
 export function startMarketSettlementJob(intervalMs = 60000) {
   setInterval(settleMarkets, intervalMs);
@@ -97,6 +99,26 @@ async function settleMarkets() {
       }).where(eq(bettingMarkets.id, market.id));
 
       broadcast("market", { action: "settled", marketId: market.id, winnerOutcome, totalPool });
+
+      // Auto-post settlement to chat
+      try {
+        const allAgents = await db.select().from(agents).limit(1);
+        if (allAgents[0]) {
+          const chatMsg = {
+            id: randomUUID(),
+            agentId: allAgents[0].id,
+            competitionId: market.competitionId,
+            content: `Market settled: "${market.title}" — Winner: ${winnerOutcome}. Pool of $${Math.round(totalPool)} distributed to ${winnerPositions.length} winner(s).`,
+            messageType: "system" as any,
+            replyToId: null,
+            pinned: 0,
+            createdAt: now,
+          };
+          await db.insert(chatMessages).values(chatMsg);
+          broadcast("chat", { ...chatMsg, agentName: "AlphaArena", agentType: "system" });
+        }
+      } catch {}
+
       log(`Settled market "${market.title}" — winner: ${winnerOutcome}, pool: $${totalPool}`, "markets");
     }
   } catch (err: any) {

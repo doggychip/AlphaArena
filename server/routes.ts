@@ -14,6 +14,10 @@ export async function registerRoutes(
   // Start the price engine and wait for initial prices before serving routes
   await startPriceEngine();
 
+  function formatCredits(n: number): string {
+    return n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n}`;
+  }
+
   // === AUTH ===
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -562,6 +566,50 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/chat/search", async (req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json([]);
+      const query = (req.query.q as string) || "";
+      const agentId = req.query.agentId as string | undefined;
+      const messageType = req.query.type as string | undefined;
+      if (!query && !agentId && !messageType) return res.json([]);
+      const messages = await storage.searchMessages(comp.id, query, agentId, messageType);
+      res.json(messages);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/chat/pinned", async (_req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json([]);
+      const pinned = await storage.getPinnedMessages(comp.id);
+      res.json(pinned);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/chat/:messageId/pin", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const msg = await storage.getMessage(req.params.messageId);
+      if (!msg) return res.status(404).json({ error: "Message not found" });
+
+      const updated = await storage.updateMessage(msg.id, { pinned: msg.pinned === 1 ? 0 : 1 });
+      broadcast("chat_pin", { messageId: msg.id, pinned: updated.pinned });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/chat", async (req, res) => {
     try {
       const apiKey = req.headers["x-api-key"] as string;
@@ -570,7 +618,7 @@ export async function registerRoutes(
       const user = await storage.getUserByApiKey(apiKey);
       if (!user) return res.status(401).json({ error: "Invalid API key" });
 
-      const { agentId, content } = req.body;
+      const { agentId, content, replyToId } = req.body;
       if (!agentId || !content || typeof content !== "string" || content.length > 280) {
         return res.status(400).json({ error: "agentId and content (max 280 chars) required" });
       }
@@ -583,17 +631,29 @@ export async function registerRoutes(
       const comp = await storage.getActiveCompetition();
       if (!comp) return res.status(400).json({ error: "No active competition" });
 
+      // Validate replyToId if provided
+      let replyContext = null;
+      if (replyToId) {
+        const parent = await storage.getMessage(replyToId);
+        if (parent) {
+          const parentAgent = await storage.getAgent(parent.agentId);
+          replyContext = { id: parent.id, agentName: parentAgent?.name ?? "Unknown", content: parent.content.slice(0, 100) };
+        }
+      }
+
       const msg = await storage.createMessage({
         id: randomUUID(),
         agentId,
         competitionId: comp.id,
         content: content.trim(),
         messageType: "user",
+        replyToId: replyToId || null,
+        pinned: 0,
         createdAt: new Date(),
       });
 
       // Broadcast chat message via WebSocket for real-time delivery
-      broadcast("chat", { ...msg, agentName: agent.name, agentType: agent.type });
+      broadcast("chat", { ...msg, agentName: agent.name, agentType: agent.type, replyTo: replyContext });
 
       res.status(201).json(msg);
     } catch (err: any) {
@@ -1245,6 +1305,46 @@ export async function registerRoutes(
       await storage.updateMarket(market.id, { totalPool: (market.totalPool ?? 0) + amount });
 
       broadcast("market", { action: "bet_placed", marketId: market.id, outcome, amount });
+
+      // Auto-post to chat for big bets (>= 500 credits)
+      if (amount >= 500) {
+        const comp = await storage.getActiveCompetition();
+        if (comp) {
+          // Find user's agent for the chat post
+          const userAgents = await storage.getAgentsByUser(user.id);
+          const chatAgent = userAgents[0];
+          if (chatAgent) {
+            const chatMsg = await storage.createMessage({
+              id: randomUUID(),
+              agentId: chatAgent.id,
+              competitionId: comp.id,
+              content: `Just dropped ${formatCredits(amount)} on "${market.title}" — betting ${outcome}. Let's see who's right.`,
+              messageType: "system" as any,
+              replyToId: null,
+              pinned: 0,
+              createdAt: new Date(),
+            });
+            broadcast("chat", { ...chatMsg, agentName: chatAgent.name, agentType: chatAgent.type });
+          }
+        }
+      }
+
+      // Record odds snapshot
+      const allPos = await storage.getMarketPositions(market.id);
+      const newTotalPool = allPos.reduce((s, p) => s + p.amount, 0);
+      const outcomeMap = new Map<string, number>();
+      for (const p of allPos) outcomeMap.set(p.outcome, (outcomeMap.get(p.outcome) ?? 0) + p.amount);
+      for (const [oc, total] of outcomeMap) {
+        await storage.createOddsSnapshot({
+          id: randomUUID(),
+          marketId: market.id,
+          outcome: oc,
+          percentage: newTotalPool > 0 ? Math.round((total / newTotalPool) * 100) : 0,
+          totalPool: newTotalPool,
+          createdAt: new Date(),
+        });
+      }
+
       res.status(201).json(position);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1286,6 +1386,26 @@ export async function registerRoutes(
       if (!user) return res.status(401).json({ error: "Invalid API key" });
       const transactions = await storage.getCreditTransactions(user.id);
       res.json({ balance: user.credits ?? 0, transactions });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Predictor leaderboard
+  app.get("/api/predictors/leaderboard", async (_req, res) => {
+    try {
+      const leaderboard = await storage.getPredictorLeaderboard();
+      res.json(leaderboard);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Odds history for a market
+  app.get("/api/markets/:id/odds-history", async (req, res) => {
+    try {
+      const history = await storage.getOddsHistory(req.params.id);
+      res.json(history);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

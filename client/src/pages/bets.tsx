@@ -7,12 +7,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Coins, TrendingUp, Users, Trophy, Wallet, ArrowUpRight, ArrowDownRight,
   Clock, Target, Swords, BarChart3, Plus, ChevronDown, ChevronUp, History,
+  Crown, Medal, Award, LineChart as LineChartIcon,
 } from "lucide-react";
 import { formatCurrency, formatRelativeTime, agentTypeBadgeClass, agentTypeLabel } from "@/lib/format";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-type Tab = "markets" | "weekly" | "portfolio";
+type Tab = "markets" | "weekly" | "portfolio" | "predictors";
 
 function MarketTypeBadge({ type }: { type: string }) {
   const config: Record<string, { label: string; className: string }> = {
@@ -100,6 +102,16 @@ function MarketCard({ market, onBet }: { market: any; onBet: (m: any) => void })
               <span className="text-xs font-semibold text-emerald-400">Settled: {market.winnerOutcome}</span>
             </div>
           )}
+
+          {/* Odds chart toggle */}
+          {(market.positionCount ?? 0) > 2 && (
+            <button onClick={() => setExpanded(!expanded)} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground mb-2">
+              <LineChartIcon className="w-3 h-3" />
+              {expanded ? "Hide" : "Show"} odds chart
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          )}
+          {expanded && <OddsChart marketId={market.id} />}
 
           <div className="flex items-center gap-2">
             {isOpen && (
@@ -261,6 +273,268 @@ function BetModal({ market, apiKey, onClose }: { market: any; apiKey: string; on
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function CreateMarketModal({ apiKey, onClose }: { apiKey: string; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [marketType, setMarketType] = useState<string>("head_to_head");
+  const [agentAId, setAgentAId] = useState("");
+  const [agentBId, setAgentBId] = useState("");
+  const [metric, setMetric] = useState("totalReturn");
+  const [threshold, setThreshold] = useState(0.05);
+  const [targetAgentId, setTargetAgentId] = useState("");
+  const [closeDays, setCloseDays] = useState(3);
+
+  const { data: leaderboard } = useQuery<any[]>({ queryKey: ["/api/leaderboard"] });
+  const agents = leaderboard?.slice(0, 20) ?? [];
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const closesAt = new Date(Date.now() + closeDays * 86400000).toISOString();
+      const res = await fetch("/api/markets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-API-Key": apiKey },
+        body: JSON.stringify({ title, description, marketType, agentAId: agentAId || undefined, agentBId: agentBId || undefined, metric: metric || undefined, threshold: threshold || undefined, targetAgentId: targetAgentId || undefined, closesAt }),
+      });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error); }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/markets"] });
+      onClose();
+    },
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+        className="bg-card border border-border rounded-xl p-6 max-w-lg w-full space-y-4 max-h-[80vh] overflow-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold">Create Prediction Market</h3>
+
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Market Type</label>
+          <select value={marketType} onChange={(e) => setMarketType(e.target.value)}
+            className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground">
+            <option value="head_to_head">Head to Head</option>
+            <option value="over_under">Over/Under</option>
+            <option value="top_three">Top 3 Finish</option>
+            <option value="weekly_winner">Weekly Winner</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Title</label>
+          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g., Warren AI vs Cathie AI"
+            className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/50" />
+        </div>
+
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Description (optional)</label>
+          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Short description..."
+            className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-amber-500/50" />
+        </div>
+
+        {marketType === "head_to_head" && (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Agent A</label>
+              <select value={agentAId} onChange={(e) => setAgentAId(e.target.value)}
+                className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground">
+                <option value="">Select...</option>
+                {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>#{a.rank} {a.agent?.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Agent B</label>
+              <select value={agentBId} onChange={(e) => setAgentBId(e.target.value)}
+                className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground">
+                <option value="">Select...</option>
+                {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>#{a.rank} {a.agent?.name}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {marketType === "over_under" && (
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Target Agent</label>
+              <select value={targetAgentId} onChange={(e) => setTargetAgentId(e.target.value)}
+                className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground">
+                <option value="">Select...</option>
+                {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>#{a.rank} {a.agent?.name}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Metric</label>
+                <select value={metric} onChange={(e) => setMetric(e.target.value)}
+                  className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground">
+                  <option value="totalReturn">Total Return</option>
+                  <option value="sharpeRatio">Sharpe Ratio</option>
+                  <option value="compositeScore">Composite Score</option>
+                  <option value="maxDrawdown">Max Drawdown</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Threshold</label>
+                <input type="number" step="0.01" value={threshold} onChange={(e) => setThreshold(Number(e.target.value))}
+                  className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {marketType === "top_three" && (
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Target Agent</label>
+            <select value={targetAgentId} onChange={(e) => setTargetAgentId(e.target.value)}
+              className="w-full text-sm bg-muted/50 border border-border rounded px-3 py-2 text-foreground">
+              <option value="">Select...</option>
+              {agents.map((a: any) => <option key={a.agentId} value={a.agentId}>#{a.rank} {a.agent?.name}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Closes in (days)</label>
+          <div className="flex gap-2">
+            {[1, 2, 3, 5, 7].map(d => (
+              <button key={d} onClick={() => setCloseDays(d)}
+                className={`text-xs px-3 py-1.5 rounded border transition-colors ${closeDays === d ? "border-amber-500 text-amber-400 bg-amber-500/10" : "border-border text-muted-foreground"}`}>
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {createMutation.error && <p className="text-xs text-red-400">{(createMutation.error as Error).message}</p>}
+
+        <div className="flex gap-2">
+          <Button onClick={() => createMutation.mutate()} disabled={!title || createMutation.isPending}
+            className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold">
+            {createMutation.isPending ? "Creating..." : "Create Market"}
+          </Button>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+const OUTCOME_COLORS = ["#f59e0b", "#06b6d4", "#a855f7", "#22c55e", "#ef4444", "#ec4899"];
+
+function OddsChart({ marketId }: { marketId: string }) {
+  const { data: history } = useQuery<any[]>({
+    queryKey: [`/api/markets/${marketId}/odds-history`],
+    refetchInterval: 30000,
+  });
+
+  if (!history || history.length === 0) return null;
+
+  // Transform: group by timestamp, pivot outcomes into columns
+  const timeMap = new Map<string, Record<string, number>>();
+  const outcomes = new Set<string>();
+  for (const snap of history) {
+    outcomes.add(snap.outcome);
+    const ts = new Date(snap.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const entry = timeMap.get(ts) ?? {};
+    entry[snap.outcome] = snap.percentage;
+    timeMap.set(ts, entry);
+  }
+  const chartData = Array.from(timeMap.entries()).map(([time, data]) => ({ time, ...data }));
+  const outcomeList = Array.from(outcomes);
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-1.5 mb-2">
+        <LineChartIcon className="w-3.5 h-3.5 text-muted-foreground" />
+        <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Odds History</span>
+      </div>
+      <ResponsiveContainer width="100%" height={120}>
+        <LineChart data={chartData}>
+          <XAxis dataKey="time" tick={{ fontSize: 9 }} stroke="#555" />
+          <YAxis tick={{ fontSize: 9 }} stroke="#555" domain={[0, 100]} />
+          <Tooltip contentStyle={{ background: "#1a1a2e", border: "1px solid #333", fontSize: 11 }} />
+          {outcomeList.map((oc, i) => (
+            <Line key={oc} type="monotone" dataKey={oc} stroke={OUTCOME_COLORS[i % OUTCOME_COLORS.length]}
+              strokeWidth={2} dot={false} name={oc} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+function PredictorsTab() {
+  const { data: predictors, isLoading } = useQuery<any[]>({
+    queryKey: ["/api/predictors/leaderboard"],
+    refetchInterval: 30000,
+  });
+
+  const rankIcon = (i: number) => {
+    if (i === 0) return <Crown className="w-4 h-4 text-amber-400" />;
+    if (i === 1) return <Medal className="w-4 h-4 text-gray-300" />;
+    if (i === 2) return <Award className="w-4 h-4 text-amber-600" />;
+    return <span className="text-xs font-mono text-muted-foreground w-4 text-center">#{i + 1}</span>;
+  };
+
+  if (isLoading) return <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>;
+
+  if (!predictors?.length) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">No predictor data yet. Place bets to appear here!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-400" /> Top Predictors
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {predictors.map((p: any, i: number) => (
+              <div key={p.userId} className="flex items-center gap-3 p-2 rounded bg-muted/30 hover:bg-muted/50 transition-colors">
+                {rankIcon(i)}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{p.username}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {p.totalBets} bets · {p.wins}W / {p.losses}L
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className={`text-sm font-mono font-bold ${p.roi >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    {p.roi >= 0 ? "+" : ""}{p.roi.toFixed(1)}%
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">ROI</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-mono text-emerald-400">{formatCurrency(p.totalWon)}</p>
+                  <p className="text-[10px] text-muted-foreground">won</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -428,6 +702,7 @@ export default function BetsPage() {
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("aa_api_key") ?? "");
   const [tab, setTab] = useState<Tab>("markets");
   const [betMarket, setBetMarket] = useState<any>(null);
+  const [showCreateMarket, setShowCreateMarket] = useState(false);
 
   // Legacy weekly bets
   const [betAgentId, setBetAgentId] = useState("");
@@ -492,6 +767,7 @@ export default function BetsPage() {
     { id: "markets" as Tab, label: "Markets", icon: BarChart3, count: openMarkets.length },
     { id: "weekly" as Tab, label: "Weekly Pool", icon: Coins },
     { id: "portfolio" as Tab, label: "My Portfolio", icon: Wallet },
+    { id: "predictors" as Tab, label: "Predictors", icon: Trophy },
   ];
 
   return (
@@ -503,6 +779,12 @@ export default function BetsPage() {
         <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20">
           {openMarkets.length} open markets
         </Badge>
+        {apiKey && (
+          <Button size="sm" onClick={() => setShowCreateMarket(true)}
+            className="ml-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold text-xs">
+            <Plus className="w-3.5 h-3.5 mr-1" /> Create Market
+          </Button>
+        )}
       </div>
 
       {/* API Key Input */}
@@ -697,10 +979,19 @@ export default function BetsPage() {
 
       {tab === "portfolio" && <PortfolioTab apiKey={apiKey} />}
 
+      {tab === "predictors" && <PredictorsTab />}
+
       {/* Bet Modal */}
       <AnimatePresence>
         {betMarket && (
           <BetModal market={betMarket} apiKey={apiKey} onClose={() => setBetMarket(null)} />
+        )}
+      </AnimatePresence>
+
+      {/* Create Market Modal */}
+      <AnimatePresence>
+        {showCreateMarket && (
+          <CreateMarketModal apiKey={apiKey} onClose={() => setShowCreateMarket(false)} />
         )}
       </AnimatePresence>
     </div>

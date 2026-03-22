@@ -138,6 +138,8 @@ app.use((req, res, next) => {
 
     const { startMarketSettlementJob } = await import("./jobs/marketSettlement");
     startMarketSettlementJob(60000);
+    const { startAutoMarketJob } = await import("./jobs/autoMarkets");
+    startAutoMarketJob(3600000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

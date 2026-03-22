@@ -4,10 +4,14 @@ import type {
   Trade, DailySnapshot, LeaderboardEntry,
   InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
   Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge,
-  ChatReaction, BettingMarket, MarketPosition, CreditTransaction
+  ChatReaction, BettingMarket, MarketPosition, CreditTransaction, OddsSnapshot
 } from "@shared/schema";
 
-export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
+export type EnrichedChatMessage = ChatMessage & {
+  agentName: string; agentType: string;
+  replyTo?: { id: string; agentName: string; content: string } | null;
+  reactions?: { emoji: string; count: number }[];
+};
 
 export type FeedTrade = Trade & { agentName: string; agentType: string; agentId: string; reactions: TradeReaction[]; reason?: string };
 
@@ -63,7 +67,16 @@ export interface IStorage {
   hasAchievement(agentId: string, achievementId: string): Promise<boolean>;
   // Chat
   getRecentMessages(competitionId: string, limit?: number): Promise<EnrichedChatMessage[]>;
+  searchMessages(competitionId: string, query: string, agentId?: string, messageType?: string): Promise<EnrichedChatMessage[]>;
+  getMessage(id: string): Promise<ChatMessage | undefined>;
   createMessage(msg: ChatMessage): Promise<ChatMessage>;
+  updateMessage(id: string, updates: Partial<ChatMessage>): Promise<ChatMessage>;
+  getPinnedMessages(competitionId: string): Promise<EnrichedChatMessage[]>;
+  // Odds Snapshots
+  createOddsSnapshot(snap: OddsSnapshot): Promise<OddsSnapshot>;
+  getOddsHistory(marketId: string): Promise<OddsSnapshot[]>;
+  // Predictor Stats
+  getPredictorLeaderboard(): Promise<{ userId: string; username: string; totalBets: number; wins: number; losses: number; totalWon: number; totalLost: number; roi: number }[]>;
   // Bets
   getBetsByWeek(weekStart: string): Promise<Bet[]>;
   getBetsByUser(userId: string): Promise<Bet[]>;
@@ -343,19 +356,100 @@ export class MemStorage implements IStorage {
   }
 
   // Chat
+  private enrichMessage(m: ChatMessage): EnrichedChatMessage {
+    const agent = this.agents.get(m.agentId);
+    const enriched: EnrichedChatMessage = { ...m, agentName: agent?.name ?? "Unknown", agentType: agent?.type ?? "algo_bot" };
+    // Attach reply context
+    if (m.replyToId) {
+      const parent = this.chatMsgs.get(m.replyToId);
+      if (parent) {
+        const parentAgent = this.agents.get(parent.agentId);
+        enriched.replyTo = { id: parent.id, agentName: parentAgent?.name ?? "Unknown", content: parent.content.slice(0, 100) };
+      }
+    }
+    // Aggregate reactions
+    const reactionMap = new Map<string, number>();
+    for (const r of this.chatReactionsMap.values()) {
+      if (r.messageId === m.id) reactionMap.set(r.emoji, (reactionMap.get(r.emoji) ?? 0) + 1);
+    }
+    if (reactionMap.size > 0) {
+      enriched.reactions = Array.from(reactionMap.entries()).map(([emoji, count]) => ({ emoji, count }));
+    }
+    return enriched;
+  }
   async getRecentMessages(competitionId: string, limit = 50): Promise<EnrichedChatMessage[]> {
     const msgs = Array.from(this.chatMsgs.values())
       .filter(m => m.competitionId === competitionId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, limit);
-    return msgs.map(m => {
-      const agent = this.agents.get(m.agentId);
-      return { ...m, agentName: agent?.name ?? "Unknown", agentType: agent?.type ?? "algo_bot" };
-    });
+    return msgs.map(m => this.enrichMessage(m));
+  }
+  async searchMessages(competitionId: string, query: string, agentId?: string, messageType?: string): Promise<EnrichedChatMessage[]> {
+    const lower = query.toLowerCase();
+    return Array.from(this.chatMsgs.values())
+      .filter(m => m.competitionId === competitionId)
+      .filter(m => m.content.toLowerCase().includes(lower))
+      .filter(m => !agentId || m.agentId === agentId)
+      .filter(m => !messageType || m.messageType === messageType)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 50)
+      .map(m => this.enrichMessage(m));
+  }
+  async getMessage(id: string): Promise<ChatMessage | undefined> {
+    return this.chatMsgs.get(id);
   }
   async createMessage(msg: ChatMessage): Promise<ChatMessage> {
     this.chatMsgs.set(msg.id, msg);
     return msg;
+  }
+  async updateMessage(id: string, updates: Partial<ChatMessage>): Promise<ChatMessage> {
+    const msg = this.chatMsgs.get(id)!;
+    const updated = { ...msg, ...updates };
+    this.chatMsgs.set(id, updated);
+    return updated;
+  }
+  async getPinnedMessages(competitionId: string): Promise<EnrichedChatMessage[]> {
+    return Array.from(this.chatMsgs.values())
+      .filter(m => m.competitionId === competitionId && m.pinned === 1)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .map(m => this.enrichMessage(m));
+  }
+
+  // Odds Snapshots
+  private oddsSnapshotsMap = new Map<string, OddsSnapshot>();
+  async createOddsSnapshot(snap: OddsSnapshot) { this.oddsSnapshotsMap.set(snap.id, snap); return snap; }
+  async getOddsHistory(marketId: string) {
+    return Array.from(this.oddsSnapshotsMap.values()).filter(s => s.marketId === marketId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }
+
+  // Predictor Stats
+  async getPredictorLeaderboard() {
+    const userStats = new Map<string, { totalBets: number; wins: number; losses: number; totalWon: number; totalLost: number }>();
+    for (const pos of this.marketPositionsMap.values()) {
+      if (pos.status === "active") continue;
+      const stats = userStats.get(pos.userId) ?? { totalBets: 0, wins: 0, losses: 0, totalWon: 0, totalLost: 0 };
+      stats.totalBets++;
+      if (pos.status === "won") { stats.wins++; stats.totalWon += pos.payout ?? 0; }
+      else { stats.losses++; stats.totalLost += pos.amount; }
+      userStats.set(pos.userId, stats);
+    }
+    // Also count legacy bets
+    for (const bet of this.betsMap.values()) {
+      if (bet.status === "active") continue;
+      const stats = userStats.get(bet.userId) ?? { totalBets: 0, wins: 0, losses: 0, totalWon: 0, totalLost: 0 };
+      stats.totalBets++;
+      if (bet.status === "won") { stats.wins++; stats.totalWon += bet.payout ?? 0; }
+      else { stats.losses++; stats.totalLost += bet.amount; }
+      userStats.set(bet.userId, stats);
+    }
+    const result = [];
+    for (const [userId, stats] of userStats) {
+      const user = this.users.get(userId);
+      const invested = stats.totalWon + stats.totalLost;
+      result.push({ userId, username: user?.username ?? "Unknown", ...stats, roi: invested > 0 ? ((stats.totalWon - stats.totalLost) / invested) * 100 : 0 });
+    }
+    return result.sort((a, b) => b.roi - a.roi);
   }
 
   // Bets
