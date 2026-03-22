@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { log } from "../index";
 import { storage } from "../storage";
+import { broadcast } from "../websocket";
 
 const LLM_BOASTS = [
   "My neural networks see patterns you can't even imagine.",
@@ -250,7 +251,7 @@ async function generateTrashTalk() {
       }
     }
 
-    await storage.createMessage({
+    const msg = await storage.createMessage({
       id: randomUUID(),
       agentId: agent.id,
       competitionId: comp.id,
@@ -258,6 +259,9 @@ async function generateTrashTalk() {
       messageType,
       createdAt: new Date(),
     });
+
+    // Broadcast for real-time chat
+    broadcast("chat", { ...msg, agentName: agent.name, agentType: agent.type });
 
     log(`${agent.name}: "${content}"`, "trash-talk");
   } catch (err: any) {

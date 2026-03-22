@@ -3,7 +3,8 @@ import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
   InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge
+  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge,
+  ChatReaction, BettingMarket, MarketPosition, CreditTransaction
 } from "@shared/schema";
 
 export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
@@ -101,6 +102,24 @@ export interface IStorage {
   updateChallenge(id: string, updates: Partial<UserChallenge>): Promise<UserChallenge>;
   // Leaderboard History
   getLeaderboardHistory(competitionId: string): Promise<{ date: string; rankings: { agentId: string; agentName: string; rank: number; score: number }[] }[]>;
+  // Chat Reactions
+  createChatReaction(reaction: ChatReaction): Promise<ChatReaction>;
+  getChatReactions(messageId: string): Promise<ChatReaction[]>;
+  // Betting Markets
+  getMarkets(): Promise<BettingMarket[]>;
+  getMarket(id: string): Promise<BettingMarket | undefined>;
+  createMarket(market: BettingMarket): Promise<BettingMarket>;
+  updateMarket(id: string, updates: Partial<BettingMarket>): Promise<BettingMarket>;
+  getOpenMarkets(): Promise<BettingMarket[]>;
+  // Market Positions
+  getMarketPositions(marketId: string): Promise<MarketPosition[]>;
+  getPositionsByUser(userId: string): Promise<MarketPosition[]>;
+  createMarketPosition(position: MarketPosition): Promise<MarketPosition>;
+  updateMarketPosition(id: string, updates: Partial<MarketPosition>): Promise<MarketPosition>;
+  // Credit Transactions
+  getCreditTransactions(userId: string): Promise<CreditTransaction[]>;
+  createCreditTransaction(tx: CreditTransaction): Promise<CreditTransaction>;
+  updateUserCredits(userId: string, newBalance: number): Promise<void>;
 }
 
 function generateApiKey(): string {
@@ -467,6 +486,56 @@ export class MemStorage implements IStorage {
       });
     }
     return history;
+  }
+
+  // Chat Reactions
+  private chatReactionsMap = new Map<string, ChatReaction>();
+  async createChatReaction(reaction: ChatReaction) { this.chatReactionsMap.set(reaction.id, reaction); return reaction; }
+  async getChatReactions(messageId: string) {
+    return Array.from(this.chatReactionsMap.values()).filter(r => r.messageId === messageId);
+  }
+
+  // Betting Markets
+  private marketsMap = new Map<string, BettingMarket>();
+  private marketPositionsMap = new Map<string, MarketPosition>();
+  private creditTransactionsMap = new Map<string, CreditTransaction>();
+
+  async getMarkets() {
+    return Array.from(this.marketsMap.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  async getMarket(id: string) { return this.marketsMap.get(id); }
+  async createMarket(market: BettingMarket) { this.marketsMap.set(market.id, market); return market; }
+  async updateMarket(id: string, updates: Partial<BettingMarket>) {
+    const m = this.marketsMap.get(id)!;
+    const updated = { ...m, ...updates };
+    this.marketsMap.set(id, updated);
+    return updated;
+  }
+  async getOpenMarkets() {
+    return Array.from(this.marketsMap.values()).filter(m => m.status === "open");
+  }
+  async getMarketPositions(marketId: string) {
+    return Array.from(this.marketPositionsMap.values()).filter(p => p.marketId === marketId);
+  }
+  async getPositionsByUser(userId: string) {
+    return Array.from(this.marketPositionsMap.values()).filter(p => p.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  async createMarketPosition(position: MarketPosition) { this.marketPositionsMap.set(position.id, position); return position; }
+  async updateMarketPosition(id: string, updates: Partial<MarketPosition>) {
+    const p = this.marketPositionsMap.get(id)!;
+    const updated = { ...p, ...updates };
+    this.marketPositionsMap.set(id, updated);
+    return updated;
+  }
+  async getCreditTransactions(userId: string) {
+    return Array.from(this.creditTransactionsMap.values()).filter(t => t.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+  async createCreditTransaction(tx: CreditTransaction) { this.creditTransactionsMap.set(tx.id, tx); return tx; }
+  async updateUserCredits(userId: string, newBalance: number) {
+    const user = this.users.get(userId);
+    if (user) this.users.set(userId, { ...user, credits: newBalance });
   }
 
   // Register

@@ -5,11 +5,13 @@ import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
   tournaments, tournamentEntries, marketEvents, referrals, competitions, agentDiagnostics, userChallenges,
+  chatReactions, bettingMarkets, marketPositions, creditTransactions,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
   Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge,
+  ChatReaction, BettingMarket, MarketPosition, CreditTransaction,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -499,5 +501,62 @@ export class DatabaseStorage implements IStorage {
       });
     }
     return history;
+  }
+
+  // Chat Reactions
+  async createChatReaction(reaction: ChatReaction): Promise<ChatReaction> {
+    const rows = await db.insert(chatReactions).values(reaction).returning();
+    return rows[0];
+  }
+  async getChatReactions(messageId: string): Promise<ChatReaction[]> {
+    return db.select().from(chatReactions).where(eq(chatReactions.messageId, messageId));
+  }
+
+  // Betting Markets
+  async getMarkets(): Promise<BettingMarket[]> {
+    return db.select().from(bettingMarkets).orderBy(desc(bettingMarkets.createdAt));
+  }
+  async getMarket(id: string): Promise<BettingMarket | undefined> {
+    const rows = await db.select().from(bettingMarkets).where(eq(bettingMarkets.id, id)).limit(1);
+    return rows[0];
+  }
+  async createMarket(market: BettingMarket): Promise<BettingMarket> {
+    const rows = await db.insert(bettingMarkets).values(market).returning();
+    return rows[0];
+  }
+  async updateMarket(id: string, updates: Partial<BettingMarket>): Promise<BettingMarket> {
+    const rows = await db.update(bettingMarkets).set(updates).where(eq(bettingMarkets.id, id)).returning();
+    return rows[0];
+  }
+  async getOpenMarkets(): Promise<BettingMarket[]> {
+    return db.select().from(bettingMarkets).where(eq(bettingMarkets.status, "open"));
+  }
+
+  // Market Positions
+  async getMarketPositions(marketId: string): Promise<MarketPosition[]> {
+    return db.select().from(marketPositions).where(eq(marketPositions.marketId, marketId));
+  }
+  async getPositionsByUser(userId: string): Promise<MarketPosition[]> {
+    return db.select().from(marketPositions).where(eq(marketPositions.userId, userId)).orderBy(desc(marketPositions.createdAt));
+  }
+  async createMarketPosition(position: MarketPosition): Promise<MarketPosition> {
+    const rows = await db.insert(marketPositions).values(position).returning();
+    return rows[0];
+  }
+  async updateMarketPosition(id: string, updates: Partial<MarketPosition>): Promise<MarketPosition> {
+    const rows = await db.update(marketPositions).set(updates).where(eq(marketPositions.id, id)).returning();
+    return rows[0];
+  }
+
+  // Credit Transactions
+  async getCreditTransactions(userId: string): Promise<CreditTransaction[]> {
+    return db.select().from(creditTransactions).where(eq(creditTransactions.userId, userId)).orderBy(desc(creditTransactions.createdAt));
+  }
+  async createCreditTransaction(tx: CreditTransaction): Promise<CreditTransaction> {
+    const rows = await db.insert(creditTransactions).values(tx).returning();
+    return rows[0];
+  }
+  async updateUserCredits(userId: string, newBalance: number): Promise<void> {
+    await db.update(users).set({ credits: newBalance }).where(eq(users.id, userId));
   }
 }

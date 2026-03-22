@@ -5,6 +5,7 @@ import { registerSchema, insertTradeSchema, updateStrategySchema, insertDuelSche
 import { randomUUID } from "crypto";
 import type { Position } from "@shared/schema";
 import { getCurrentPrices, startPriceEngine, getPriceForPair } from "./prices";
+import { broadcast, getOnlineAgents } from "./websocket";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -590,7 +591,57 @@ export async function registerRoutes(
         messageType: "user",
         createdAt: new Date(),
       });
+
+      // Broadcast chat message via WebSocket for real-time delivery
+      broadcast("chat", { ...msg, agentName: agent.name, agentType: agent.type });
+
       res.status(201).json(msg);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Chat online presence
+  app.get("/api/chat/online", async (_req, res) => {
+    res.json(getOnlineAgents());
+  });
+
+  // Chat message reactions
+  app.post("/api/chat/:messageId/react", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const { emoji, agentId } = req.body;
+      if (!emoji || !agentId) return res.status(400).json({ error: "emoji and agentId required" });
+
+      const CHAT_EMOJIS = ["fire", "rocket", "skull", "eyes", "laugh", "heart", "clown", "100"];
+      if (!CHAT_EMOJIS.includes(emoji)) return res.status(400).json({ error: "Invalid emoji" });
+
+      const agent = await storage.getAgent(agentId);
+      if (!agent || agent.userId !== user.id) return res.status(403).json({ error: "Not your agent" });
+
+      const reaction = await storage.createChatReaction({
+        id: randomUUID(),
+        messageId: req.params.messageId,
+        emoji,
+        agentId,
+        createdAt: new Date(),
+      });
+
+      broadcast("chat_reaction", { messageId: req.params.messageId, emoji, agentId, agentName: agent.name });
+      res.status(201).json(reaction);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/chat/:messageId/reactions", async (req, res) => {
+    try {
+      const reactions = await storage.getChatReactions(req.params.messageId);
+      res.json(reactions);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -1064,6 +1115,177 @@ export async function registerRoutes(
         createdAt: new Date(),
       });
       res.status(201).json(bet);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // === BETTING MARKETS ===
+  app.get("/api/markets", async (_req, res) => {
+    try {
+      const markets = await storage.getMarkets();
+      res.json(markets);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/markets/:id", async (req, res) => {
+    try {
+      const market = await storage.getMarket(req.params.id);
+      if (!market) return res.status(404).json({ error: "Market not found" });
+      const positions = await storage.getMarketPositions(market.id);
+      // Calculate pool per outcome
+      const outcomes: Record<string, { total: number; count: number }> = {};
+      for (const pos of positions) {
+        if (!outcomes[pos.outcome]) outcomes[pos.outcome] = { total: 0, count: 0 };
+        outcomes[pos.outcome].total += pos.amount;
+        outcomes[pos.outcome].count++;
+      }
+      const totalPool = positions.reduce((s, p) => s + p.amount, 0);
+      res.json({ ...market, totalPool, outcomes, positionCount: positions.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/markets", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const { title, description, marketType, agentAId, agentBId, metric, threshold, targetAgentId, closesAt } = req.body;
+      if (!title || !marketType || !closesAt) {
+        return res.status(400).json({ error: "title, marketType, and closesAt required" });
+      }
+      const validTypes = ["weekly_winner", "head_to_head", "over_under", "top_three"];
+      if (!validTypes.includes(marketType)) return res.status(400).json({ error: "Invalid market type" });
+
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.status(400).json({ error: "No active competition" });
+
+      const market = await storage.createMarket({
+        id: randomUUID(),
+        title,
+        description: description || null,
+        competitionId: comp.id,
+        marketType,
+        status: "open",
+        agentAId: agentAId || null,
+        agentBId: agentBId || null,
+        metric: metric || null,
+        threshold: threshold ?? null,
+        targetAgentId: targetAgentId || null,
+        winnerOutcome: null,
+        totalPool: 0,
+        closesAt: new Date(closesAt),
+        settledAt: null,
+        createdAt: new Date(),
+      });
+
+      broadcast("market", { action: "created", market });
+      res.status(201).json(market);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/markets/:id/bet", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+
+      const { outcome, amount } = req.body;
+      if (!outcome || !amount || amount <= 0 || amount > 50000) {
+        return res.status(400).json({ error: "outcome and amount (1-50000) required" });
+      }
+
+      const market = await storage.getMarket(req.params.id);
+      if (!market) return res.status(404).json({ error: "Market not found" });
+      if (market.status !== "open") return res.status(400).json({ error: "Market is not open" });
+      if (new Date(market.closesAt) < new Date()) return res.status(400).json({ error: "Market is closed" });
+
+      // Check user balance
+      const balance = user.credits ?? 0;
+      if (balance < amount) return res.status(400).json({ error: `Insufficient credits (have ${balance}, need ${amount})` });
+
+      // Debit user credits
+      const newBalance = balance - amount;
+      await storage.updateUserCredits(user.id, newBalance);
+
+      // Record transaction
+      await storage.createCreditTransaction({
+        id: randomUUID(),
+        userId: user.id,
+        amount: -amount,
+        type: "bet_placed",
+        referenceId: market.id,
+        description: `Bet on "${market.title}" — outcome: ${outcome}`,
+        balanceAfter: newBalance,
+        createdAt: new Date(),
+      });
+
+      // Create position
+      const position = await storage.createMarketPosition({
+        id: randomUUID(),
+        marketId: market.id,
+        userId: user.id,
+        outcome,
+        amount,
+        payout: null,
+        status: "active",
+        createdAt: new Date(),
+      });
+
+      // Update market total pool
+      await storage.updateMarket(market.id, { totalPool: (market.totalPool ?? 0) + amount });
+
+      broadcast("market", { action: "bet_placed", marketId: market.id, outcome, amount });
+      res.status(201).json(position);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/markets/:id/positions", async (req, res) => {
+    try {
+      const positions = await storage.getMarketPositions(req.params.id);
+      res.json(positions);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/my/positions", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const positions = await storage.getPositionsByUser(user.id);
+      // Enrich with market info
+      const enriched = await Promise.all(positions.map(async (p) => {
+        const market = await storage.getMarket(p.marketId);
+        return { ...p, marketTitle: market?.title, marketType: market?.marketType, marketStatus: market?.status };
+      }));
+      res.json(enriched);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/my/balance", async (req, res) => {
+    try {
+      const apiKey = req.headers["x-api-key"] as string;
+      if (!apiKey) return res.status(401).json({ error: "Missing X-API-Key header" });
+      const user = await storage.getUserByApiKey(apiKey);
+      if (!user) return res.status(401).json({ error: "Invalid API key" });
+      const transactions = await storage.getCreditTransactions(user.id);
+      res.json({ balance: user.credits ?? 0, transactions });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
