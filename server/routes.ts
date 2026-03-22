@@ -597,6 +597,45 @@ export async function registerRoutes(
     }
   });
 
+  // === CHALLENGES (Challenge a Legend) ===
+  app.post("/api/challenges", async (req, res) => {
+    try {
+      const { agentId, pair, side } = req.body;
+      if (!agentId || !pair || !side) return res.status(400).json({ error: "agentId, pair, side required" });
+      const agent = await storage.getAgent(agentId);
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
+      const prices = (await import("./prices")).getCurrentPrices();
+      const entryPrice = prices[pair];
+      if (!entryPrice) return res.status(400).json({ error: `No price for ${pair}` });
+      const sessionId = req.headers["x-session-id"] as string || `anon-${Date.now()}`;
+      const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const challenge = {
+        id: `ch-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sessionId, agentId, agentName: agent.name, pair, side, entryPrice,
+        currentPrice: entryPrice, exitPrice: null, pnlPct: 0, userWon: null,
+        status: "active" as const, lesson: null, endsAt, createdAt: new Date(), resolvedAt: null,
+      };
+      await storage.createChallenge(challenge);
+      res.json(challenge);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/challenges/active", async (req, res) => {
+    try {
+      const sessionId = req.headers["x-session-id"] as string || "";
+      const all = await storage.getActiveChallenges(sessionId);
+      res.json(all);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.get("/api/challenges/history", async (req, res) => {
+    try {
+      const sessionId = req.headers["x-session-id"] as string || "";
+      const all = await storage.getResolvedChallenges(sessionId);
+      res.json(all);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === DIAGNOSTICS ===
   app.get("/api/agents/:id/diagnostics", async (req, res) => {
     try {

@@ -3,12 +3,12 @@ import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
   InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic
+  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge
 } from "@shared/schema";
 
 export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
 
-export type FeedTrade = Trade & { agentName: string; agentType: string; agentId: string; reactions: TradeReaction[] };
+export type FeedTrade = Trade & { agentName: string; agentType: string; agentId: string; reactions: TradeReaction[]; reason?: string };
 
 export interface IStorage {
   // Users
@@ -92,6 +92,12 @@ export interface IStorage {
   getDiagnosticsByAgent(agentId: string, limit?: number): Promise<AgentDiagnostic[]>;
   getDiagnosticsSummary(): Promise<{ category: string; count: number }[]>;
   createDiagnostic(d: AgentDiagnostic): Promise<AgentDiagnostic>;
+  // Challenges
+  createChallenge(c: UserChallenge): Promise<UserChallenge>;
+  getActiveChallenges(sessionId: string): Promise<UserChallenge[]>;
+  getResolvedChallenges(sessionId: string): Promise<UserChallenge[]>;
+  getAllActiveChallenges(): Promise<UserChallenge[]>;
+  updateChallenge(id: string, updates: Partial<UserChallenge>): Promise<UserChallenge>;
   // Leaderboard History
   getLeaderboardHistory(competitionId: string): Promise<{ date: string; rankings: { agentId: string; agentName: string; rank: number; score: number }[] }[]>;
 }
@@ -124,6 +130,7 @@ export class MemStorage implements IStorage {
   private marketEventsMap: Map<string, MarketEvent> = new Map();
   private referralsMap: Map<string, Referral> = new Map();
   private diagnosticsMap: Map<string, AgentDiagnostic> = new Map();
+  private challengesMap: Map<string, UserChallenge> = new Map();
 
   constructor() {
     this.seed();
@@ -397,6 +404,26 @@ export class MemStorage implements IStorage {
     return Object.entries(counts).map(([category, count]) => ({ category, count }));
   }
   async createDiagnostic(d: AgentDiagnostic) { this.diagnosticsMap.set(d.id, d); return d; }
+
+  // Challenges
+  async createChallenge(c: UserChallenge) { this.challengesMap.set(c.id, c); return c; }
+  async getActiveChallenges(sessionId: string) {
+    return Array.from(this.challengesMap.values()).filter(c => c.sessionId === sessionId && c.status === "active");
+  }
+  async getResolvedChallenges(sessionId: string) {
+    return Array.from(this.challengesMap.values()).filter(c => c.sessionId === sessionId && c.status === "resolved")
+      .sort((a, b) => new Date(b.resolvedAt ?? 0).getTime() - new Date(a.resolvedAt ?? 0).getTime());
+  }
+  async getAllActiveChallenges() {
+    return Array.from(this.challengesMap.values()).filter(c => c.status === "active");
+  }
+  async updateChallenge(id: string, updates: Partial<UserChallenge>) {
+    const ch = this.challengesMap.get(id);
+    if (!ch) throw new Error("Challenge not found");
+    const updated = { ...ch, ...updates };
+    this.challengesMap.set(id, updated);
+    return updated;
+  }
 
   // Referrals
   async getReferralsByUser(userId: string) { return Array.from(this.referralsMap.values()).filter(r => r.referrerId === userId); }

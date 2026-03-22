@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, integer, real, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, real, doublePrecision, boolean, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -82,6 +82,7 @@ export const trades = pgTable("trades", {
   price: real("price").notNull(),
   totalValue: real("total_value").notNull(),
   fee: real("fee").notNull(),
+  reason: text("reason"),
   executedAt: timestamp("executed_at").defaultNow().notNull(),
 });
 
@@ -206,6 +207,27 @@ export const marketEvents = pgTable("market_events", {
   endsAt: timestamp("ends_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const userChallenges = pgTable("user_challenges", {
+  id: varchar("id").primaryKey(),
+  sessionId: varchar("session_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  agentName: varchar("agent_name").notNull(),
+  pair: varchar("pair").notNull(),
+  side: varchar("side").notNull(),
+  entryPrice: doublePrecision("entry_price").notNull(),
+  currentPrice: doublePrecision("current_price").default(0),
+  exitPrice: doublePrecision("exit_price"),
+  pnlPct: doublePrecision("pnl_pct").default(0),
+  userWon: boolean("user_won"),
+  status: text("status").notNull().default("active"),
+  lesson: text("lesson"),
+  endsAt: timestamp("ends_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+export type UserChallenge = typeof userChallenges.$inferSelect;
 
 export const agentDiagnostics = pgTable("agent_diagnostics", {
   id: varchar("id").primaryKey(),
