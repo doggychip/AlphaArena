@@ -1,7 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { PerplexityAttribution } from "./PerplexityAttribution";
 import {
-  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X, Crown, Menu, GitCompare, LogIn, Plug, Activity, Brain, Target, Eye, Sparkles, Clock, Users,
+  Home, Trophy, UserPlus, FileText, Bot, ChevronLeft, ChevronRight, CreditCard, Swords, Radio, MessageSquare, Coins, Sun, Moon, Search, X, Crown, Menu, GitCompare, LogIn, Plug, Activity, Brain, Target, Eye, Sparkles, Clock, Users, BookOpen,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useTheme } from "@/App";
@@ -20,6 +20,7 @@ const navItems = [
   { path: "/challenge", label: "Challenge Legend", icon: Target },
   { path: "/quiz", label: "Investor Quiz", icon: Sparkles },
   { path: "/shadow", label: "Shadow Portfolio", icon: Eye },
+  { path: "/learn", label: "Learn", icon: BookOpen },
   { path: "/time-machine", label: "Time Machine", icon: Clock },
   { path: "/predictors", label: "Predictors", icon: Users },
   { path: "/diagnostics", label: "Diagnostics", icon: Activity },

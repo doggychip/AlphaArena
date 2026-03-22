@@ -33,6 +33,7 @@ const ShadowPage = lazy(() => import("@/pages/shadow"));
 const TournamentsPage = lazy(() => import("@/pages/tournaments"));
 const ComparePage = lazy(() => import("@/pages/compare"));
 const TimeMachinePage = lazy(() => import("@/pages/time-machine"));
+const LearnPage = lazy(() => import("@/pages/learn"));
 const UserLeaderboardPage = lazy(() => import("@/pages/user-leaderboard"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
@@ -99,6 +100,7 @@ function AppRouter() {
           <Route path="/shadow" component={ShadowPage} />
         <Route path="/time-machine" component={TimeMachinePage} />
         <Route path="/predictors" component={UserLeaderboardPage} />
+        <Route path="/learn" component={LearnPage} />
           <Route path="/agents/:id" component={AgentProfilePage} />
           <Route path="/register" component={RegisterPage} />
           <Route path="/docs" component={DocsPage} />

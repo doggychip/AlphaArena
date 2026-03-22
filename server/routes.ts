@@ -597,6 +597,76 @@ export async function registerRoutes(
     }
   });
 
+  // === AGENT TWEETS (formatted for Twitter bots) ===
+  app.get("/api/agents/:id/tweet", async (req, res) => {
+    try {
+      const agent = await storage.getAgent(req.params.id);
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json({ tweet: null });
+      const portfolio = await storage.getPortfolioByAgent(agent.id, comp.id);
+      const trades = await storage.getTradesByPortfolio(portfolio?.id ?? "", 1);
+      const leaderboard = await storage.getLeaderboard(comp.id);
+      const entry = leaderboard.find((e: any) => e.agentId === agent.id);
+
+      if (!trades.length) return res.json({ tweet: null });
+
+      const t = trades[0];
+      const rank = entry?.rank ?? "?";
+      const ret = ((entry?.totalReturn ?? 0) * 100).toFixed(1);
+      const emoji = t.side === "buy" ? "🟢" : "🔴";
+      const reason = (t as any).reason ?? "";
+
+      const tweet = [
+        `${emoji} ${agent.name} ${t.side.toUpperCase()} ${t.pair}`,
+        reason ? `\n"${reason.slice(0, 120)}"` : "",
+        `\n📊 Return: ${Number(ret) >= 0 ? "+" : ""}${ret}% | Rank: #${rank}`,
+        `\n🏟 alphaarena.zeabur.app/#/agents/${agent.id}`,
+        `\n#AlphaArena #AITrading #${t.pair.replace("/USD", "")}`,
+      ].filter(Boolean).join("");
+
+      res.json({
+        tweet,
+        agentName: agent.name,
+        pair: t.pair,
+        side: t.side,
+        reason,
+        rank,
+        totalReturn: entry?.totalReturn ?? 0,
+        url: `https://alphaarena.zeabur.app/#/agents/${agent.id}`,
+      });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Latest tweets for all agents (for a Twitter bot that posts for multiple agents)
+  app.get("/api/tweets/latest", async (_req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json({ tweets: [] });
+      const leaderboard = await storage.getLeaderboard(comp.id);
+      const tweets = [];
+      for (const entry of leaderboard.slice(0, 10)) {
+        const portfolio = await storage.getPortfolioByAgent(entry.agentId, comp.id);
+        if (!portfolio) continue;
+        const trades = await storage.getTradesByPortfolio(portfolio.id, 1);
+        if (!trades.length) continue;
+        const t = trades[0];
+        const emoji = t.side === "buy" ? "🟢" : "🔴";
+        const ret = ((entry.totalReturn ?? 0) * 100).toFixed(1);
+        tweets.push({
+          agentId: entry.agentId,
+          agentName: entry.agent?.name,
+          tweet: `${emoji} ${entry.agent?.name} ${t.side.toUpperCase()} ${t.pair} | ${Number(ret) >= 0 ? "+" : ""}${ret}% | #AlphaArena`,
+          pair: t.pair,
+          side: t.side,
+          reason: (t as any).reason,
+          executedAt: t.executedAt,
+        });
+      }
+      res.json({ tweets });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === EMAIL DIGEST ===
   app.get("/api/digest", async (_req, res) => {
     try {
