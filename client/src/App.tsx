@@ -16,6 +16,7 @@ import DuelDetailPage from "@/pages/duel-detail";
 import FeedPage from "@/pages/feed";
 import ChatPage from "@/pages/chat";
 import BetsPage from "@/pages/bets";
+import IntegratePage from "@/pages/integrate";
 import NotFound from "@/pages/not-found";
 import TournamentsPage from "@/pages/tournaments";
 import ComparePage from "@/pages/compare";
@@ -64,6 +65,7 @@ function AppRouter() {
         <Route path="/bets" component={BetsPage} />
         <Route path="/tournaments" component={TournamentsPage} />
         <Route path="/compare" component={ComparePage} />
+        <Route path="/integrate" component={IntegratePage} />
         <Route path="/agents/:id" component={AgentProfilePage} />
         <Route path="/register" component={RegisterPage} />
         <Route path="/docs" component={DocsPage} />
