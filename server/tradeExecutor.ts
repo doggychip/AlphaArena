@@ -10,7 +10,7 @@ export interface TradeResult {
   error?: string;
 }
 
-export async function executeTrade(agentId: string, pair: string, side: "buy" | "sell", quantity: number, reason?: string): Promise<TradeResult> {
+export async function executeTrade(agentId: string, pair: string, side: "buy" | "sell", quantity: number, reason?: string, reasoning?: any[], philosophy?: string, confidence?: number): Promise<TradeResult> {
   try {
     const currentPrice = getPriceForPair(pair);
     if (!currentPrice) return { success: false, error: `No price for ${pair}` };
@@ -40,8 +40,11 @@ export async function executeTrade(agentId: string, pair: string, side: "buy" | 
       totalValue: Math.round(totalValue * 100) / 100,
       fee,
       reason: reason ?? null,
+      reasoning: reasoning ? JSON.stringify(reasoning) : null,
+      philosophy: philosophy ?? null,
+      confidence: confidence ?? null,
       executedAt: new Date(),
-    });
+    } as any);
 
     // Update position
     const existingPos = await storage.getPosition(portfolio.id, pair);
