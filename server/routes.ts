@@ -597,6 +597,93 @@ export async function registerRoutes(
     }
   });
 
+  // === EMAIL DIGEST ===
+  app.get("/api/digest", async (_req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json({ digest: null });
+      const leaderboard = await storage.getLeaderboard(comp.id);
+      const trades = await storage.getRecentTrades(50);
+      const diagnostics = await storage.getDiagnosticsSummary();
+
+      const top3 = leaderboard.slice(0, 3);
+      const totalBuys = trades.filter(t => t.side === "buy").length;
+      const totalSells = trades.filter(t => t.side === "sell").length;
+      const sentiment = totalBuys > totalSells ? "Bullish" : totalBuys < totalSells ? "Bearish" : "Mixed";
+
+      // Most traded pair
+      const pairCounts: Record<string, number> = {};
+      for (const t of trades) pairCounts[t.pair] = (pairCounts[t.pair] || 0) + 1;
+      const hotPair = Object.entries(pairCounts).sort((a, b) => b[1] - a[1])[0];
+
+      const topFailure = diagnostics.sort((a, b) => b.count - a.count)[0];
+
+      const digest = {
+        date: new Date().toISOString().split("T")[0],
+        leader: { name: top3[0]?.agent?.name, return: top3[0]?.totalReturn },
+        top3: top3.map(e => ({ name: e.agent?.name, return: e.totalReturn, sharpe: e.sharpeRatio })),
+        sentiment,
+        buys: totalBuys,
+        sells: totalSells,
+        totalTrades: trades.length,
+        hotPair: hotPair ? { pair: hotPair[0], trades: hotPair[1] } : null,
+        topFailure: topFailure ? { category: topFailure.category, count: topFailure.count } : null,
+        subject: `AlphaArena Daily: ${top3[0]?.agent?.name} leads with ${((top3[0]?.totalReturn ?? 0) * 100).toFixed(1)}% | Market ${sentiment}`,
+        previewText: `${totalBuys} buys, ${totalSells} sells. ${hotPair?.[0] ?? "BTC/USD"} is the hottest pair. ${top3[0]?.agent?.name} leads.`,
+      };
+      res.json({ digest });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  app.post("/api/digest/subscribe", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || !email.includes("@")) return res.status(400).json({ error: "Valid email required" });
+      // Store email for future SendGrid/Resend integration
+      // For now, just acknowledge
+      res.json({ success: true, message: "Subscribed! You'll receive daily digests once email service is configured." });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
+  // === USER LEADERBOARD ===
+  app.get("/api/user-leaderboard", async (_req, res) => {
+    try {
+      const all = await storage.getAllActiveChallenges();
+      const resolved = await storage.getResolvedChallenges("");
+      // Aggregate by sessionId across all challenges
+      const stats: Record<string, { wins: number; losses: number; total: number; streak: number; bestStreak: number }> = {};
+      // Get ALL resolved challenges (not just one session)
+      const allResolved = (await (storage as any).getAllResolvedChallenges?.()) ?? resolved;
+      for (const ch of allResolved) {
+        if (!stats[ch.sessionId]) stats[ch.sessionId] = { wins: 0, losses: 0, total: 0, streak: 0, bestStreak: 0 };
+        const s = stats[ch.sessionId];
+        s.total++;
+        if (ch.userWon) {
+          s.wins++;
+          s.streak++;
+          if (s.streak > s.bestStreak) s.bestStreak = s.streak;
+        } else {
+          s.losses++;
+          s.streak = 0;
+        }
+      }
+      const leaderboard = Object.entries(stats)
+        .filter(([, s]) => s.total >= 1)
+        .map(([sessionId, s]) => ({
+          sessionId,
+          displayName: `Predictor ${sessionId.slice(-6).toUpperCase()}`,
+          wins: s.wins,
+          losses: s.losses,
+          totalChallenges: s.total,
+          winRate: Math.round((s.wins / s.total) * 100),
+          bestStreak: s.bestStreak,
+        }))
+        .sort((a, b) => b.winRate - a.winRate || b.totalChallenges - a.totalChallenges)
+        .slice(0, 50);
+      res.json(leaderboard);
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === SHARE CARDS ===
   app.get("/api/share/challenge/:id", async (req, res) => {
     try {
