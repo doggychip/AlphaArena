@@ -97,6 +97,7 @@ export interface IStorage {
   getActiveChallenges(sessionId: string): Promise<UserChallenge[]>;
   getResolvedChallenges(sessionId: string): Promise<UserChallenge[]>;
   getAllActiveChallenges(): Promise<UserChallenge[]>;
+  getAllResolvedChallenges(): Promise<UserChallenge[]>;
   updateChallenge(id: string, updates: Partial<UserChallenge>): Promise<UserChallenge>;
   // Leaderboard History
   getLeaderboardHistory(competitionId: string): Promise<{ date: string; rankings: { agentId: string; agentName: string; rank: number; score: number }[] }[]>;
@@ -416,6 +417,10 @@ export class MemStorage implements IStorage {
   }
   async getAllActiveChallenges() {
     return Array.from(this.challengesMap.values()).filter(c => c.status === "active");
+  }
+  async getAllResolvedChallenges() {
+    return Array.from(this.challengesMap.values()).filter(c => c.status === "resolved")
+      .sort((a, b) => new Date(a.resolvedAt ?? 0).getTime() - new Date(b.resolvedAt ?? 0).getTime());
   }
   async updateChallenge(id: string, updates: Partial<UserChallenge>) {
     const ch = this.challengesMap.get(id);

@@ -435,6 +435,9 @@ export class DatabaseStorage implements IStorage {
   async getAllActiveChallenges(): Promise<UserChallenge[]> {
     return db.select().from(userChallenges).where(eq(userChallenges.status, "active"));
   }
+  async getAllResolvedChallenges(): Promise<UserChallenge[]> {
+    return db.select().from(userChallenges).where(eq(userChallenges.status, "resolved")).orderBy(asc(userChallenges.resolvedAt));
+  }
   async updateChallenge(id: string, updates: Partial<UserChallenge>): Promise<UserChallenge> {
     const rows = await db.update(userChallenges).set(updates).where(eq(userChallenges.id, id)).returning();
     return rows[0];

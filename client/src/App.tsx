@@ -32,6 +32,8 @@ const QuizPage = lazy(() => import("@/pages/quiz"));
 const ShadowPage = lazy(() => import("@/pages/shadow"));
 const TournamentsPage = lazy(() => import("@/pages/tournaments"));
 const ComparePage = lazy(() => import("@/pages/compare"));
+const TimeMachinePage = lazy(() => import("@/pages/time-machine"));
+const UserLeaderboardPage = lazy(() => import("@/pages/user-leaderboard"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function PageLoader() {
@@ -95,6 +97,8 @@ function AppRouter() {
           <Route path="/challenge" component={ChallengePage} />
           <Route path="/quiz" component={QuizPage} />
           <Route path="/shadow" component={ShadowPage} />
+        <Route path="/time-machine" component={TimeMachinePage} />
+        <Route path="/predictors" component={UserLeaderboardPage} />
           <Route path="/agents/:id" component={AgentProfilePage} />
           <Route path="/register" component={RegisterPage} />
           <Route path="/docs" component={DocsPage} />
