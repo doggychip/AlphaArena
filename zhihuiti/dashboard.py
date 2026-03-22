@@ -451,6 +451,27 @@ html += renderCard('💾', 'Memory', [
   m('Avg Task Score', mem.avg_task_score),
 ].join(''));
 
+// Cross-Project Dashboard (loaded async)
+fetch('/api/crossproject').then(r=>r.json()).then(cp=>{
+  let cpHtml = '';
+  for (let [key, proj] of Object.entries(cp.projects||{})) {
+    let statusColor = proj.status === 'live' ? 'green' : 'red';
+    let metrics = Object.entries(proj.metrics||{}).filter(([k,v])=>typeof v !== 'object').map(([k,v])=>
+      m(k.replace(/_/g,' '), typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(2)) : v)
+    ).join('');
+    cpHtml += renderCard(proj.status==='live'?'🟢':'🔴', proj.name + ' (' + proj.status + ')', metrics);
+  }
+  if (cp.summary) {
+    cpHtml += renderCard('🌐', 'Cross-Project Summary', [
+      m('Projects Live', cp.summary.projects_live + '/' + cp.summary.projects_total, cp.summary.health==='all_green'?'green':'yellow'),
+      m('AlphaArena Equity', '$' + (cp.summary.alphaarena_equity||0).toLocaleString()),
+      m('AlphaArena Return', (cp.summary.alphaarena_return||0).toFixed(2) + '%', cp.summary.alphaarena_return>=0?'green':'red'),
+      m('Best Rank', '#' + (cp.summary.alphaarena_best_rank||'—')),
+    ].join(''));
+  }
+  document.getElementById('dashboard').innerHTML += cpHtml;
+}).catch(()=>{});
+
 document.getElementById('dashboard').innerHTML = html;
 } // end renderDashboard
 </script>
@@ -480,6 +501,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif self.path == "/api/scheduler":
             sched = getattr(DashboardHandler, "_scheduler", None)
             self._send_json(sched.get_status() if sched else {"running": False, "goals": []})
+        elif self.path == "/api/crossproject":
+            self._serve_crossproject()
+        elif self.path == "/api/intelligence":
+            self._serve_intelligence()
         elif self.path == "/api/debug":
             self._send_json({
                 "backend": getattr(getattr(self.orchestrator, "llm", None), "_backend", "unknown"),
@@ -532,6 +557,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self._add_cors()
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
+
+    def _serve_crossproject(self):
+        from zhihuiti.crossproject import gather_all
+        zhihuiti_data = _gather_data(self.orchestrator) if self.orchestrator else {}
+        data = gather_all(zhihuiti_data)
+        self._send_json(data)
+
+    def _serve_intelligence(self):
+        from zhihuiti.intelligence import get_intelligence_goals, generate_intelligence_goal
+        data = {
+            "next_goal": generate_intelligence_goal(),
+            "sample_goals": get_intelligence_goals(5),
+            "targets": [],
+        }
+        try:
+            from zhihuiti.intelligence import get_targets
+            data["targets"] = get_targets()
+        except Exception:
+            pass
+        self._send_json(data)
 
     def _serve_theories(self):
         from zhihuiti.collision import THEORIES
