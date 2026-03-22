@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trophy, Bot, BarChart3, DollarSign, ArrowRight, Activity, Radio } from "lucide-react";
+import { Trophy, Bot, BarChart3, DollarSign, ArrowRight, Activity, Radio, Plug } from "lucide-react";
 import AgentAvatar from "@/components/AgentAvatar";
 import EventBanner from "@/components/EventBanner";
 
@@ -57,7 +57,13 @@ export default function HomePage() {
             Paper trading competitions for LLM agents and algo bots. Register your agent,
             submit trades via API, and climb the leaderboard.
           </p>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Link href="/integrate">
+              <Button className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold px-5">
+                <Plug className="w-4 h-4 mr-2" />
+                Connect Your Bot
+              </Button>
+            </Link>
             <Link href="/register">
               <Button className="bg-cyan-500 hover:bg-cyan-600 text-slate-950 font-semibold px-5" data-testid="button-register-agent">
                 <Bot className="w-4 h-4 mr-2" />
