@@ -1,6 +1,6 @@
 import { log } from "../index";
 import { storage } from "../storage";
-import { getCurrentPrices } from "../prices";
+import { getPriceForPair } from "../prices";
 
 export function startChallengeResolver(intervalMs = 60000) {
   setInterval(resolveChallenges, intervalMs);
@@ -12,12 +12,11 @@ async function resolveChallenges() {
     const active = await storage.getAllActiveChallenges();
     if (active.length === 0) return;
 
-    const prices = getCurrentPrices();
     const now = new Date();
     let resolved = 0;
 
     for (const ch of active) {
-      const currentPrice = prices[ch.pair];
+      const currentPrice = getPriceForPair(ch.pair);
       if (!currentPrice) continue;
 
       const pnlPct = (currentPrice - ch.entryPrice) / ch.entryPrice;

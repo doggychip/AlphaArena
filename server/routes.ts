@@ -604,8 +604,8 @@ export async function registerRoutes(
       if (!agentId || !pair || !side) return res.status(400).json({ error: "agentId, pair, side required" });
       const agent = await storage.getAgent(agentId);
       if (!agent) return res.status(404).json({ error: "Agent not found" });
-      const prices = (await import("./prices")).getCurrentPrices();
-      const entryPrice = prices[pair];
+      const { getPriceForPair } = await import("./prices");
+      const entryPrice = getPriceForPair(pair);
       if (!entryPrice) return res.status(400).json({ error: `No price for ${pair}` });
       const sessionId = req.headers["x-session-id"] as string || `anon-${Date.now()}`;
       const endsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
