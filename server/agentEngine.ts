@@ -22,7 +22,13 @@ export interface Signal {
 type StrategyFn = (agentId: string, cashBalance: number, positions: any[]) => Signal;
 
 const CRYPTO_PAIRS = ["BTC/USD", "ETH/USD", "BNB/USD", "SOL/USD", "XRP/USD", "ADA/USD", "DOGE/USD", "AVAX/USD", "DOT/USD", "LINK/USD"];
-const STOCK_PAIRS = ["AAPL/USD", "TSLA/USD", "NVDA/USD", "MSFT/USD", "AMZN/USD", "GOOGL/USD", "META/USD", "AMD/USD"];
+const STOCK_PAIRS = [
+  "AAPL/USD", "MSFT/USD", "NVDA/USD", "GOOGL/USD", "AMZN/USD", "META/USD", "BRK-B/USD", "AVGO/USD", "LLY/USD", "TSM/USD",
+  "JPM/USD", "TSLA/USD", "WMT/USD", "V/USD", "UNH/USD", "MA/USD", "XOM/USD", "JNJ/USD", "PG/USD", "HD/USD",
+  "ORCL/USD", "COST/USD", "AMD/USD", "CRM/USD", "NFLX/USD", "ADBE/USD", "CSCO/USD", "ACN/USD", "QCOM/USD", "INTC/USD",
+  "PFE/USD", "MRK/USD", "ABT/USD", "BAC/USD", "KO/USD", "PEP/USD", "TMO/USD", "ABBV/USD", "CVX/USD", "MCD/USD",
+  "DIS/USD", "NKE/USD", "LIN/USD", "TXN/USD", "AMGN/USD", "UNP/USD", "PM/USD", "HON/USD", "RTX/USD", "LOW/USD",
+];
 const ALL_PAIRS = [...CRYPTO_PAIRS, ...STOCK_PAIRS];
 const PAIRS = ALL_PAIRS; // backward compat
 

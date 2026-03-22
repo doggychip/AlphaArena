@@ -17,8 +17,19 @@ const COINGECKO_ID_MAP: Record<string, string> = {
 const COINGECKO_IDS = Object.keys(COINGECKO_ID_MAP).join(",");
 const COINGECKO_URL = `https://api.coingecko.com/api/v3/simple/price?ids=${COINGECKO_IDS}&vs_currencies=usd&include_24hr_change=true`;
 
-// Stock tickers
-const STOCK_TICKERS = ["AAPL", "TSLA", "NVDA", "MSFT", "AMZN", "GOOGL", "META", "AMD"];
+// Top 50 US stocks by market cap
+const STOCK_TICKERS = [
+  // Mega caps
+  "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "BRK-B", "AVGO", "LLY", "TSM",
+  // Large caps
+  "JPM", "TSLA", "WMT", "V", "UNH", "MA", "XOM", "JNJ", "PG", "HD",
+  // Tech & growth
+  "ORCL", "COST", "AMD", "CRM", "NFLX", "ADBE", "CSCO", "ACN", "QCOM", "INTC",
+  // Healthcare & finance
+  "PFE", "MRK", "ABT", "BAC", "KO", "PEP", "TMO", "ABBV", "CVX", "MCD",
+  // Industrial & consumer
+  "DIS", "NKE", "LIN", "TXN", "AMGN", "UNP", "PM", "HON", "RTX", "LOW",
+];
 
 // Fallback simulated prices
 const basePrices: Record<string, number> = {
@@ -32,14 +43,26 @@ const basePrices: Record<string, number> = {
   "AVAX/USD": 38.5,
   "DOT/USD": 7.82,
   "LINK/USD": 16.4,
-  "AAPL/USD": 178.50,
-  "TSLA/USD": 245.30,
-  "NVDA/USD": 125.80,
-  "MSFT/USD": 420.15,
-  "AMZN/USD": 185.60,
-  "GOOGL/USD": 155.40,
-  "META/USD": 505.20,
-  "AMD/USD": 125.90,
+  // Mega caps
+  "AAPL/USD": 178.50, "MSFT/USD": 420.15, "NVDA/USD": 125.80, "GOOGL/USD": 155.40,
+  "AMZN/USD": 185.60, "META/USD": 505.20, "BRK-B/USD": 420.50, "AVGO/USD": 168.30,
+  "LLY/USD": 785.40, "TSM/USD": 155.20,
+  // Large caps
+  "JPM/USD": 195.80, "TSLA/USD": 245.30, "WMT/USD": 165.90, "V/USD": 280.40,
+  "UNH/USD": 520.60, "MA/USD": 465.30, "XOM/USD": 108.70, "JNJ/USD": 155.20,
+  "PG/USD": 162.80, "HD/USD": 345.60,
+  // Tech & growth
+  "ORCL/USD": 125.40, "COST/USD": 735.80, "AMD/USD": 125.90, "CRM/USD": 265.40,
+  "NFLX/USD": 625.30, "ADBE/USD": 485.60, "CSCO/USD": 52.40, "ACN/USD": 335.20,
+  "QCOM/USD": 165.80, "INTC/USD": 32.50,
+  // Healthcare & finance
+  "PFE/USD": 28.90, "MRK/USD": 125.60, "ABT/USD": 112.40, "BAC/USD": 38.50,
+  "KO/USD": 60.80, "PEP/USD": 175.30, "TMO/USD": 565.40, "ABBV/USD": 168.20,
+  "CVX/USD": 155.60, "MCD/USD": 285.40,
+  // Industrial & consumer
+  "DIS/USD": 112.30, "NKE/USD": 98.50, "LIN/USD": 445.60, "TXN/USD": 175.80,
+  "AMGN/USD": 285.30, "UNP/USD": 245.60, "PM/USD": 118.40, "HON/USD": 205.30,
+  "RTX/USD": 98.60, "LOW/USD": 235.40,
 };
 
 interface PriceData {
@@ -128,26 +151,34 @@ async function fetchCoinGeckoPrices(): Promise<PriceData[] | null> {
 
 async function fetchStockPrices(): Promise<PriceData[]> {
   const prices: PriceData[] = [];
-  for (const ticker of STOCK_TICKERS) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: { "User-Agent": "Mozilla/5.0" },
-      });
-      clearTimeout(timeout);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const result = data?.chart?.result?.[0];
-      if (!result) continue;
-      const meta = result.meta;
-      const price = meta.regularMarketPrice ?? meta.previousClose;
-      const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
-      const change24h = prevClose > 0 ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : 0;
-      prices.push({ pair: `${ticker}/USD`, price: Math.round(price * 100) / 100, change24h });
-    } catch {}
+  // Fetch in batches of 10 concurrently to avoid rate limits
+  const BATCH_SIZE = 10;
+  for (let i = 0; i < STOCK_TICKERS.length; i += BATCH_SIZE) {
+    const batch = STOCK_TICKERS.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (ticker) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=2d`;
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { "User-Agent": "Mozilla/5.0" },
+        });
+        clearTimeout(timeout);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const result = data?.chart?.result?.[0];
+        if (!result) return null;
+        const meta = result.meta;
+        const price = meta.regularMarketPrice ?? meta.previousClose;
+        const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+        const change24h = prevClose > 0 ? Math.round(((price - prevClose) / prevClose) * 10000) / 100 : 0;
+        return { pair: `${ticker}/USD`, price: Math.round(price * 100) / 100, change24h } as PriceData;
+      })
+    );
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) prices.push(r.value);
+    }
   }
   return prices;
 }
