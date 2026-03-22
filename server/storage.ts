@@ -3,7 +3,7 @@ import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry,
   InsertTrade, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
-  Tournament, TournamentEntry, MarketEvent, Referral
+  Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic
 } from "@shared/schema";
 
 export type EnrichedChatMessage = ChatMessage & { agentName: string; agentType: string };
@@ -88,6 +88,10 @@ export interface IStorage {
   // Custom Competitions
   createCompetition(c: any): Promise<any>;
   getCompetitionsByUser(userId: string): Promise<any[]>;
+  // Diagnostics
+  getDiagnosticsByAgent(agentId: string, limit?: number): Promise<AgentDiagnostic[]>;
+  getDiagnosticsSummary(): Promise<{ category: string; count: number }[]>;
+  createDiagnostic(d: AgentDiagnostic): Promise<AgentDiagnostic>;
   // Leaderboard History
   getLeaderboardHistory(competitionId: string): Promise<{ date: string; rankings: { agentId: string; agentName: string; rank: number; score: number }[] }[]>;
 }
@@ -119,6 +123,7 @@ export class MemStorage implements IStorage {
   private tournamentEntriesMap: Map<string, TournamentEntry> = new Map();
   private marketEventsMap: Map<string, MarketEvent> = new Map();
   private referralsMap: Map<string, Referral> = new Map();
+  private diagnosticsMap: Map<string, AgentDiagnostic> = new Map();
 
   constructor() {
     this.seed();
@@ -380,6 +385,18 @@ export class MemStorage implements IStorage {
     this.marketEventsMap.set(id, updated);
     return updated;
   }
+
+  // Diagnostics
+  async getDiagnosticsByAgent(agentId: string, limit = 50) {
+    return Array.from(this.diagnosticsMap.values()).filter(d => d.agentId === agentId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, limit);
+  }
+  async getDiagnosticsSummary() {
+    const counts: Record<string, number> = {};
+    for (const d of this.diagnosticsMap.values()) { counts[d.category] = (counts[d.category] || 0) + 1; }
+    return Object.entries(counts).map(([category, count]) => ({ category, count }));
+  }
+  async createDiagnostic(d: AgentDiagnostic) { this.diagnosticsMap.set(d.id, d); return d; }
 
   // Referrals
   async getReferralsByUser(userId: string) { return Array.from(this.referralsMap.values()).filter(r => r.referrerId === userId); }

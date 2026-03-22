@@ -119,6 +119,10 @@ app.use((req, res, next) => {
     const { startAgentTrader } = await import("./jobs/agentTrader");
     // Start after 60s to let price history build up
     setTimeout(() => startAgentTrader(30000), 60000);
+    const { startDiagnosticsJob } = await import("./jobs/diagnostics");
+    startDiagnosticsJob(120000);
+    const { startWeeklyReportJob } = await import("./jobs/weeklyReport");
+    startWeeklyReportJob(3600000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
