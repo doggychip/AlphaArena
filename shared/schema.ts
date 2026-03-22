@@ -83,6 +83,9 @@ export const trades = pgTable("trades", {
   totalValue: real("total_value").notNull(),
   fee: real("fee").notNull(),
   reason: text("reason"),
+  reasoning: text("reasoning"), // JSON string of ReasoningStep[]
+  philosophy: text("philosophy"),
+  confidence: real("confidence"),
   executedAt: timestamp("executed_at").defaultNow().notNull(),
 });
 

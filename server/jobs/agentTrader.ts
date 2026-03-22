@@ -59,7 +59,7 @@ async function evaluateAgent(agentId: string) {
     // Ensure quantity is reasonable
     if (signal.quantity <= 0) return;
 
-    const result = await executeTrade(agentId, signal.pair, signal.action, signal.quantity, signal.reason);
+    const result = await executeTrade(agentId, signal.pair, signal.action, signal.quantity, signal.reason, signal.reasoning, signal.philosophy, signal.confidence);
     if (result.success) {
       log(`${agent.name} ${signal.action.toUpperCase()} ${signal.quantity} ${signal.pair} — ${signal.reason}`, "agent-trader");
     }

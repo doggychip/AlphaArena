@@ -2,11 +2,21 @@ import { getPriceHistory, getAllPairHistories } from "./priceHistory";
 import { sma, ema, rsi, bollingerBands, macd, priceChange, volatility } from "./indicators";
 import { getCurrentPrices } from "./prices";
 
+export interface ReasoningStep {
+  indicator: string;    // e.g. "RSI(14)", "SMA(20)", "Price Change (10d)"
+  value: string;        // e.g. "28.3", "-4.2%", "$62,500"
+  interpretation: string; // e.g. "Oversold territory", "Below average"
+  signal: "bullish" | "bearish" | "neutral";
+}
+
 export interface Signal {
   action: "buy" | "sell" | "hold";
   pair: string;
   quantity: number;
   reason: string;
+  reasoning?: ReasoningStep[];
+  philosophy?: string;   // e.g. "Value Investing", "Momentum", "Contrarian"
+  confidence?: number;   // 0-1
 }
 
 type StrategyFn = (agentId: string, cashBalance: number, positions: any[]) => Signal;
@@ -29,21 +39,30 @@ function sizeForCash(cash: number, price: number, pct: number): number {
 
 /** Warren Buffett: "Be fearful when others are greedy" — buys big dips, holds forever */
 function warrenBuffett(_id: string, cash: number, positions: any[]): Signal {
-  // Buffett focuses on BTC (digital gold) and blue-chip stocks
   const targets = ["BTC/USD", "AAPL/USD", "MSFT/USD"];
   for (const pair of targets) {
     const h = getPriceHistory(pair);
     if (h.length < 20) continue;
     const change10 = priceChange(h, 10);
+    const r = rsi(h, 14);
+    const avg = sma(h, 20);
     const price = h[h.length - 1];
+    const belowSMA = price < avg;
 
-    // Only buys after significant dips — be fearful when others are greedy
+    const reasoning: ReasoningStep[] = [
+      { indicator: "Price Change (10d)", value: `${(change10*100).toFixed(1)}%`, interpretation: change10 < -0.03 ? "Significant dip — potential value opportunity" : "No meaningful correction", signal: change10 < -0.03 ? "bullish" : "neutral" },
+      { indicator: "RSI(14)", value: r.toFixed(1), interpretation: r < 30 ? "Oversold — fear in the market" : r > 70 ? "Overbought — greed rising" : "Normal range", signal: r < 30 ? "bullish" : r > 70 ? "bearish" : "neutral" },
+      { indicator: "Price vs SMA(20)", value: `$${price.toFixed(2)} vs $${avg.toFixed(2)}`, interpretation: belowSMA ? "Trading below fair value estimate" : "Trading at or above fair value", signal: belowSMA ? "bullish" : "neutral" },
+      { indicator: "Cash Available", value: `$${cash.toFixed(0)}`, interpretation: cash > 1000 ? "Sufficient capital for position" : "Limited capital", signal: cash > 1000 ? "bullish" : "neutral" },
+    ];
+
     if (change10 < -0.03) {
-      return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.08), reason: `Value opportunity: ${pair} down ${(change10*100).toFixed(1)}%. Be greedy when others are fearful.` };
+      return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.08), reason: `Value opportunity: ${pair} down ${(change10*100).toFixed(1)}%. Be greedy when others are fearful.`, reasoning, philosophy: "Value Investing", confidence: Math.min(0.9, 0.5 + Math.abs(change10) * 5) };
     }
   }
-  // Never sells at a loss — diamond hands
-  return { action: "hold", pair: "BTC/USD", quantity: 0, reason: "Patience. The stock market transfers money from the impatient to the patient." };
+  return { action: "hold", pair: "BTC/USD", quantity: 0, reason: "Patience. The stock market transfers money from the impatient to the patient.", philosophy: "Value Investing", confidence: 0.5,
+    reasoning: [{ indicator: "Market Scan", value: "No dips > 3%", interpretation: "No value opportunities detected. Patience is a virtue.", signal: "neutral" }]
+  };
 }
 
 /** Cathie Wood: Disruptive innovation — high conviction in innovation assets */
@@ -71,8 +90,8 @@ function cathieWood(_id: string, cash: number, positions: any[]): Signal {
 
 /** George Soros: Reflexivity — bets against overextended trends, breaks the market */
 function georgeSoros(_id: string, cash: number, positions: any[]): Signal {
-  // Find the most overextended pair (furthest from SMA) and bet against it
   let mostExtended = ALL_PAIRS[0], maxExtension = 0, extDir = 0;
+  const scanResults: ReasoningStep[] = [];
   for (const pair of ALL_PAIRS) {
     const h = getPriceHistory(pair);
     if (h.length < 20) continue;
@@ -81,39 +100,62 @@ function georgeSoros(_id: string, cash: number, positions: any[]): Signal {
     const ext = Math.abs(price - avg) / avg;
     if (ext > maxExtension) { maxExtension = ext; mostExtended = pair; extDir = price > avg ? 1 : -1; }
   }
-  const price = getPriceHistory(mostExtended).slice(-1)[0] ?? 100;
-  // If overextended upward — sell (short the bubble)
+  const h = getPriceHistory(mostExtended);
+  const price = h.slice(-1)[0] ?? 100;
+  const avg = h.length >= 20 ? sma(h, 20) : price;
+  const r = h.length >= 14 ? rsi(h, 14) : 50;
+
+  const reasoning: ReasoningStep[] = [
+    { indicator: "Market Scan", value: `${ALL_PAIRS.length} pairs`, interpretation: `Scanned all pairs for reflexive mispricing. Most extended: ${mostExtended}`, signal: "neutral" },
+    { indicator: `${mostExtended} Extension`, value: `${(maxExtension*100).toFixed(1)}% from SMA(20)`, interpretation: maxExtension > 0.02 ? `Significantly extended — reflexive feedback loop likely` : "Within normal range", signal: maxExtension > 0.02 ? (extDir > 0 ? "bearish" : "bullish") : "neutral" },
+    { indicator: "Extension Direction", value: extDir > 0 ? "Overextended UP" : "Overextended DOWN", interpretation: extDir > 0 ? "Euphoria-driven — bubble mechanics at play" : "Fear-driven — snap-back probability rising", signal: extDir > 0 ? "bearish" : "bullish" },
+    { indicator: "RSI(14)", value: r.toFixed(1), interpretation: r > 70 ? "Confirms overbought euphoria" : r < 30 ? "Confirms oversold panic" : "Mixed signals", signal: r > 70 ? "bearish" : r < 30 ? "bullish" : "neutral" },
+  ];
+
   if (maxExtension > 0.02 && extDir > 0 && positions.some(p => p.pair === mostExtended)) {
-    return { action: "sell", pair: mostExtended, quantity: positions.find(p => p.pair === mostExtended)?.quantity ?? sizeForCash(cash, price, 0.07), reason: `Reflexivity: ${mostExtended} overextended +${(maxExtension*100).toFixed(1)}%. Breaking the Bank of England.` };
+    return { action: "sell", pair: mostExtended, quantity: positions.find(p => p.pair === mostExtended)?.quantity ?? sizeForCash(cash, price, 0.07), reason: `Reflexivity: ${mostExtended} overextended +${(maxExtension*100).toFixed(1)}%. Breaking the Bank of England.`, reasoning, philosophy: "Reflexivity / Contrarian", confidence: Math.min(0.95, 0.5 + maxExtension * 10) };
   }
-  // If overextended downward — buy the snap-back
   if (maxExtension > 0.02 && extDir < 0) {
-    return { action: "buy", pair: mostExtended, quantity: sizeForCash(cash, price, 0.07), reason: `Reflexivity: ${mostExtended} oversold -${(maxExtension*100).toFixed(1)}%. Snap-back incoming.` };
+    return { action: "buy", pair: mostExtended, quantity: sizeForCash(cash, price, 0.07), reason: `Reflexivity: ${mostExtended} oversold -${(maxExtension*100).toFixed(1)}%. Snap-back incoming.`, reasoning, philosophy: "Reflexivity / Contrarian", confidence: Math.min(0.9, 0.5 + maxExtension * 8) };
   }
-  return { action: "hold", pair: mostExtended, quantity: 0, reason: "Markets are reflexive. Waiting for mispricing." };
+  return { action: "hold", pair: mostExtended, quantity: 0, reason: "Markets are reflexive. Waiting for mispricing.", reasoning, philosophy: "Reflexivity / Contrarian", confidence: 0.3 };
 }
 
 /** Stanley Druckenmiller: Macro momentum — bet big on the strongest trend */
 function stanleyDruckenmiller(_id: string, cash: number, positions: any[]): Signal {
   let bestPair = ALL_PAIRS[0], bestChange = -Infinity;
+  const topPairs: { pair: string; change: number }[] = [];
   for (const pair of ALL_PAIRS) {
     const h = getPriceHistory(pair);
     if (h.length < 10) continue;
     const change = priceChange(h, 10);
+    topPairs.push({ pair, change });
     if (change > bestChange) { bestChange = change; bestPair = pair; }
   }
+  topPairs.sort((a, b) => b.change - a.change);
+  const bestH = getPriceHistory(bestPair);
+  const bestR = bestH.length >= 14 ? rsi(bestH, 14) : 50;
+
+  const reasoning: ReasoningStep[] = [
+    { indicator: "Momentum Scan", value: `${ALL_PAIRS.length} pairs scanned`, interpretation: `Top: ${topPairs.slice(0, 3).map(p => `${p.pair} +${(p.change*100).toFixed(1)}%`).join(", ")}`, signal: bestChange > 0.002 ? "bullish" : "neutral" },
+    { indicator: `${bestPair} Momentum (10d)`, value: `+${(bestChange*100).toFixed(2)}%`, interpretation: bestChange > 0.002 ? "Strong trend — time to bet big" : "Weak momentum — stay patient", signal: bestChange > 0.002 ? "bullish" : "neutral" },
+    { indicator: "RSI(14)", value: bestR.toFixed(1), interpretation: bestR > 70 ? "High RSI but momentum overrides" : "Room for more upside", signal: "bullish" },
+    { indicator: "Position Size", value: "10% of cash", interpretation: "Concentrated bet — Druckenmiller style. When you see it, bet big.", signal: "bullish" },
+  ];
+
   if (bestChange > 0.002) {
-    const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
-    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.10), reason: `Macro play: ${bestPair} strongest momentum +${(bestChange*100).toFixed(2)}%. When you see it, bet big.` };
+    const price = bestH.slice(-1)[0] ?? 100;
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.10), reason: `Macro play: ${bestPair} strongest momentum +${(bestChange*100).toFixed(2)}%. When you see it, bet big.`, reasoning, philosophy: "Macro Momentum", confidence: Math.min(0.95, 0.5 + bestChange * 20) };
   }
-  // Quick stop-loss on reversals
   for (const pos of positions) {
     const h = getPriceHistory(pos.pair);
     if (h.length >= 5 && priceChange(h, 5) < -0.003) {
-      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Cutting ${pos.pair}: momentum reversed. Preserve capital.` };
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Cutting ${pos.pair}: momentum reversed. Preserve capital.`, reasoning: [
+        { indicator: `${pos.pair} Reversal (5d)`, value: `${(priceChange(h,5)*100).toFixed(2)}%`, interpretation: "Momentum has flipped. Cut losses immediately.", signal: "bearish" },
+      ], philosophy: "Macro Momentum", confidence: 0.8 };
     }
   }
-  return { action: "hold", pair: bestPair, quantity: 0, reason: "Waiting for a clear macro setup." };
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Waiting for a clear macro setup.", reasoning, philosophy: "Macro Momentum", confidence: 0.3 };
 }
 
 /** David Tepper: Distressed value — buys the worst performers, bets on recovery */

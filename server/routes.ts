@@ -829,6 +829,24 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ error: err.message }); }
   });
 
+  // === REASONING TRACES ===
+  app.get("/api/agents/:id/reasoning", async (req, res) => {
+    try {
+      const comp = await storage.getActiveCompetition();
+      if (!comp) return res.json({ trades: [] });
+      const portfolio = await storage.getPortfolioByAgent(req.params.id, comp.id);
+      if (!portfolio) return res.json({ trades: [] });
+      const trades = await storage.getTradesByPortfolio(portfolio.id, 20);
+      const withReasoning = trades.map((t: any) => ({
+        ...t,
+        reasoning: t.reasoning ? JSON.parse(t.reasoning) : [],
+        philosophy: t.philosophy ?? null,
+        confidence: t.confidence ?? null,
+      }));
+      res.json({ trades: withReasoning });
+    } catch (err: any) { res.status(500).json({ error: err.message }); }
+  });
+
   // === DIAGNOSTICS ===
   app.get("/api/agents/:id/diagnostics", async (req, res) => {
     try {
