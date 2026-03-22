@@ -1,47 +1,19 @@
 /**
- * Database table initialization for zhihuiti.
- * Creates all required tables if they don't exist.
+ * Database table initialization for zhihuiti heartAI integration.
+ * Creates additional tables needed for the heartAI runner that aren't in the main schema.
+ * The main schema tables (users, agents, competitions, etc.) are managed by drizzle-kit.
  */
-import { pool } from "./db";
+import pg from "pg";
 
 export async function ensureTables() {
-  const client = await pool.connect();
+  if (!process.env.DATABASE_URL) return;
+
+  const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+
   try {
+    // Create tables needed by heartaiRunner (not in main drizzle schema)
     await client.query(`
-      -- Agents
-      CREATE TABLE IF NOT EXISTS zh_agents (
-        id VARCHAR PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        type TEXT NOT NULL DEFAULT 'trading',
-        status TEXT NOT NULL DEFAULT 'active',
-        owner_id VARCHAR,
-        strategy_id VARCHAR,
-        config TEXT DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
-        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
-      );
-
-      -- Strategies
-      CREATE TABLE IF NOT EXISTS strategies (
-        id VARCHAR PRIMARY KEY,
-        name TEXT NOT NULL,
-        description TEXT,
-        type TEXT NOT NULL DEFAULT 'custom',
-        code TEXT,
-        parameters TEXT DEFAULT '{}',
-        created_at TIMESTAMP DEFAULT NOW() NOT NULL
-      );
-
-      -- Agent logs
-      CREATE TABLE IF NOT EXISTS agent_logs (
-        id VARCHAR PRIMARY KEY,
-        agent_id VARCHAR NOT NULL,
-        action TEXT NOT NULL,
-        details TEXT DEFAULT '{}',
-        timestamp TIMESTAMP DEFAULT NOW() NOT NULL
-      );
-
       -- Products (external platforms like heartAI)
       CREATE TABLE IF NOT EXISTS products (
         id VARCHAR PRIMARY KEY,
@@ -53,6 +25,20 @@ export async function ensureTables() {
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
 
+      -- zhihuiti supervisor agents (separate from competition agents)
+      CREATE TABLE IF NOT EXISTS zh_agents (
+        id VARCHAR PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        type TEXT NOT NULL DEFAULT 'social',
+        status TEXT NOT NULL DEFAULT 'active',
+        owner_id VARCHAR,
+        strategy_id VARCHAR,
+        config TEXT DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+
       -- Agent-Product bindings
       CREATE TABLE IF NOT EXISTS agent_product_bindings (
         id VARCHAR PRIMARY KEY,
@@ -62,20 +48,16 @@ export async function ensureTables() {
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
 
-      -- Agent metrics
-      CREATE TABLE IF NOT EXISTS agent_metrics (
+      -- Agent logs (for tracking heartAI activity)
+      CREATE TABLE IF NOT EXISTS agent_logs (
         id VARCHAR PRIMARY KEY,
         agent_id VARCHAR NOT NULL,
-        date TEXT NOT NULL,
-        total_return REAL,
-        sharpe REAL,
-        drawdown REAL,
-        trade_count INTEGER,
-        win_rate REAL,
-        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+        action TEXT NOT NULL,
+        details TEXT DEFAULT '{}',
+        timestamp TIMESTAMP DEFAULT NOW() NOT NULL
       );
     `);
-    console.log("[migrate] All tables ensured");
+    console.log("[migrate] heartAI integration tables ensured");
 
     // Auto-seed heartAI product + agents if empty
     const { rows } = await client.query("SELECT COUNT(*) as cnt FROM products WHERE name = 'heartAI'");
@@ -83,12 +65,14 @@ export async function ensureTables() {
       console.log("[migrate] No heartAI product found, auto-seeding...");
       await seedHeartAI(client);
     }
+  } catch (err: any) {
+    console.error("[migrate] Error:", err.message);
   } finally {
-    client.release();
+    await client.end();
   }
 }
 
-async function seedHeartAI(client: any) {
+async function seedHeartAI(client: pg.Client) {
   const { randomUUID } = await import("crypto");
 
   const productId = randomUUID();

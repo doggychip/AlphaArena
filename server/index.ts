@@ -60,6 +60,12 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize database tables (creates if not exist + auto-seeds heartAI agents)
+  if (process.env.DATABASE_URL) {
+    const { ensureTables } = await import("./migrate");
+    await ensureTables();
+  }
+
   const { storagePromise } = await import("./storage");
   await storagePromise;
 
@@ -125,6 +131,10 @@ app.use((req, res, next) => {
     startWeeklyReportJob(3600000);
     const { startChallengeResolver } = await import("./jobs/challengeResolver");
     startChallengeResolver(60000);
+
+    // Start heartAI community runner (10-minute interval)
+    const { startHeartAIRunner } = await import("./jobs/heartaiRunner");
+    startHeartAIRunner(10 * 60 * 1000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
