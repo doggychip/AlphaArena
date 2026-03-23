@@ -242,8 +242,13 @@ class MultiAgentManager:
 
     # ── Run All Agents ──────────────────────────────────────────
 
-    def run_all(self) -> dict:
-        """Execute one trade cycle for all agents."""
+    def run_all(self, risk_manager=None) -> dict:
+        """Execute one trade cycle for all agents with risk management."""
+        from zhihuiti.risk import TradingRiskManager
+
+        if risk_manager is None:
+            risk_manager = TradingRiskManager()
+
         prices = self.get_prices()
         if not prices:
             return {"error": "no prices", "trades": {}}
@@ -252,7 +257,22 @@ class MultiAgentManager:
         for agent_id, profile in AGENT_PROFILES.items():
             portfolio = self.get_portfolio(agent_id)
             if not portfolio.get("cashBalance") and portfolio.get("cashBalance") != 0:
-                # Agent doesn't exist yet, skip
+                continue
+
+            # Risk check before trading
+            risk_check = risk_manager.check_portfolio(portfolio)
+            if not risk_check["safe"]:
+                results[agent_id] = {
+                    "name": profile["name"],
+                    "strategy": profile["strategy"],
+                    "trades": [],
+                    "equity": portfolio.get("totalEquity", 0),
+                    "risk_halted": True,
+                    "risk_reason": risk_check["violations"][0]["message"] if risk_check["violations"] else "halted",
+                }
+                console.print(
+                    f"  [red]{profile['name']}:[/red] HALTED — {results[agent_id]['risk_reason']}"
+                )
                 continue
 
             fn_name = STRATEGY_FN_MAP.get(profile["strategy"], "_trade_momentum")
@@ -260,11 +280,14 @@ class MultiAgentManager:
             if trade_fn:
                 try:
                     trades = trade_fn(agent_id, prices, portfolio)
+                    for _ in trades:
+                        risk_manager.record_trade()
                     results[agent_id] = {
                         "name": profile["name"],
                         "strategy": profile["strategy"],
                         "trades": trades,
                         "equity": portfolio.get("totalEquity", 0),
+                        "risk_warnings": risk_check.get("warnings", []),
                     }
                     if trades:
                         console.print(

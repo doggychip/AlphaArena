@@ -792,8 +792,13 @@ class AutoScheduler:
             if aa_url and aa_key:
                 try:
                     from zhihuiti.multi_agent import MultiAgentManager
+                    from zhihuiti.risk import TradingRiskManager
+                    risk_mgr = getattr(self, '_risk_manager', None)
+                    if risk_mgr is None:
+                        risk_mgr = TradingRiskManager()
+                        self._risk_manager = risk_mgr
                     multi = MultiAgentManager(base_url=aa_url, api_key=aa_key)
-                    multi_results = multi.run_all()
+                    multi_results = multi.run_all(risk_manager=risk_mgr)
                     total_trades = sum(len(r.get("trades", [])) for r in multi_results.values())
                     if total_trades > 0:
                         console.print(f"  [green]Multi-agent:[/green] {total_trades} trades across {len(multi_results)} agents")
