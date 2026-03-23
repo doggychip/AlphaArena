@@ -266,13 +266,15 @@ export default function HomePage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    const dismissed = localStorage.getItem("aa-onboarding-dismissed");
-    if (!dismissed) setShowOnboarding(true);
+    try {
+      const dismissed = localStorage.getItem("aa-onboarding-dismissed");
+      if (!dismissed) setShowOnboarding(true);
+    } catch {}
   }, []);
 
   const dismissOnboarding = () => {
     setShowOnboarding(false);
-    localStorage.setItem("aa-onboarding-dismissed", "true");
+    try { localStorage.setItem("aa-onboarding-dismissed", "true"); } catch {}
   };
 
   const { data: leaderboard, isLoading: lbLoading } = useQuery<any[]>({
