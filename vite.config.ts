@@ -23,4 +23,7 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
+  optimizeDeps: {
+    holdUntilCrawlEnd: false,
+  },
 });

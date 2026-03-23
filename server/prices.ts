@@ -185,8 +185,8 @@ async function fetchStockPrices(): Promise<PriceData[]> {
 
 async function refreshPrices() {
   const [livePrices, stockPrices] = await Promise.all([
-    fetchCoinGeckoPrices(),
-    fetchStockPrices(),
+    fetchCoinGeckoPrices().catch(() => null),
+    fetchStockPrices().catch(() => [] as PriceData[]),
   ]);
   const allLive = [...(livePrices ?? []), ...stockPrices];
 
@@ -218,8 +218,17 @@ async function refreshPrices() {
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
 export async function startPriceEngine() {
-  // Initial fetch — await to ensure prices are ready before routes serve
-  await refreshPrices();
+  // Initial fetch — try to get live prices but fall back to simulated if APIs are unreachable
+  try {
+    await refreshPrices();
+  } catch (err: any) {
+    log(`Initial price fetch failed, using simulated prices: ${err.message}`, "prices");
+    cache = {
+      prices: getSimulatedPrices(),
+      timestamp: Date.now(),
+      isLive: false,
+    };
+  }
   // Refresh every 30 seconds
   intervalHandle = setInterval(refreshPrices, 30000);
   log("Price engine started (30s refresh interval)", "prices");
