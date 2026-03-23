@@ -182,7 +182,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto pt-12 md:pt-0">
-        <div className="min-h-full animate-in fade-in duration-200">
+        <div className="min-h-full">
           {children}
         </div>
       </main>
