@@ -34,6 +34,11 @@ export async function setupVite(server: Server, app: Express) {
   app.use("/{*path}", async (req, res, next) => {
     const url = req.originalUrl;
 
+    // Don't serve HTML for asset requests — return 404 instead
+    if (url.startsWith("/assets/")) {
+      return res.status(404).send("Not found");
+    }
+
     try {
       const clientTemplate = path.resolve(
         import.meta.dirname,

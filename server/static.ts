@@ -16,12 +16,18 @@ export function serveStatic(app: Express) {
     immutable: true,
   }));
 
+  // Return 404 for missing assets — never serve index.html for asset requests
+  // This prevents Chrome's "Expected JavaScript but got text/html" error
+  app.use("/assets/{*path}", (_req, res) => {
+    res.status(404).send("Not found");
+  });
+
   // Serve other static files (favicon, manifest, etc.)
   app.use(express.static(distPath, {
-    index: false, // Don't auto-serve index.html for directory requests
+    index: false,
   }));
 
-  // SPA fallback: serve index.html with no-cache for all other routes
+  // SPA fallback: serve index.html with no-cache for all non-asset routes
   app.use("/{*path}", (_req, res) => {
     res.set({
       "Cache-Control": "no-cache, no-store, must-revalidate",
