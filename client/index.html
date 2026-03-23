@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <!--
        ______                            __
@@ -42,18 +42,53 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap" rel="stylesheet"></noscript>
+    <style>
+      /* Inline critical styles to prevent blank white page before JS loads */
+      html.dark { background: #0a0a14; color: #e5e7eb; }
+      #aa-loader { display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;flex-direction:column;gap:16px }
+      #aa-loader svg { animation: spin 1.5s linear infinite }
+      @keyframes spin { to { transform: rotate(360deg) } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="aa-loader">
+        <svg width="40" height="40" viewBox="0 0 32 32" fill="none">
+          <rect x="2" y="2" width="28" height="28" rx="6" stroke="#06b6d4" stroke-width="1.5"/>
+          <path d="M10 22L16 8L22 22" stroke="#06b6d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 18H20" stroke="#06b6d4" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="16" cy="8" r="1.5" fill="#06b6d4"/>
+        </svg>
+        <span style="color:#06b6d4;font-weight:600;font-size:14px">Loading AlphaArena...</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Global error handler to catch JS crashes that cause blank page
-      window.addEventListener('error', function(e) {
+      // Apply dark mode immediately from localStorage (before React hydrates)
+      try {
+        var theme = localStorage.getItem('aa_theme');
+        if (theme === 'light') document.documentElement.classList.remove('dark');
+      } catch(e) {}
+
+      // Catch all errors: window errors, unhandled rejections, and module load failures
+      function showError(msg) {
         var root = document.getElementById('root');
-        if (root && !root.hasChildNodes()) {
-          root.innerHTML = '<div style="padding:40px;font-family:system-ui;color:#e5e5e5;background:#0a0a0f;min-height:100vh"><h1 style="color:#06b6d4">AlphaArena</h1><p>Something went wrong loading the app.</p><p style="color:#888;font-size:14px">Error: ' + (e.message || 'Unknown') + '</p><p style="margin-top:16px"><a href="javascript:location.reload()" style="color:#06b6d4">Reload page</a></p></div>';
+        if (root && root.querySelector('#aa-loader')) {
+          root.innerHTML = '<div style="padding:40px;font-family:system-ui;color:#e5e5e5;background:#0a0a14;min-height:100vh"><h1 style="color:#06b6d4;margin:0 0 12px">AlphaArena</h1><p style="margin:0 0 8px">Failed to load the app.</p><p style="color:#888;font-size:13px;margin:0 0 16px;word-break:break-word">' + msg + '</p><a href="javascript:location.reload()" style="color:#06b6d4;text-decoration:underline">Reload page</a></div>';
         }
-      });
+      }
+      window.addEventListener('error', function(e) { showError(e.message || 'Script error'); });
+      window.addEventListener('unhandledrejection', function(e) { showError(e.reason ? (e.reason.message || String(e.reason)) : 'Unhandled promise rejection'); });
+
+      // Timeout: if React hasn't mounted after 15s, show error
+      setTimeout(function() {
+        var loader = document.getElementById('aa-loader');
+        if (loader) {
+          showError('App took too long to load. This may be caused by a network issue or browser extension blocking scripts. Try disabling extensions or refreshing.');
+        }
+      }, 15000);
+
+      // Clear stale service workers
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
           registrations.forEach(function(reg) { reg.unregister(); });
