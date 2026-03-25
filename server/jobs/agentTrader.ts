@@ -61,8 +61,7 @@ async function evaluateAgent(agentId: string) {
     if (signal.quantity <= 0) return;
 
     // Cap position size: no single trade should exceed MAX_POSITION_VALUE_PCT of starting capital
-    const comp = await storage.getActiveCompetition();
-    if (comp) {
+    {
       const { getPriceForPair } = await import("../prices");
       const price = getPriceForPair(signal.pair);
       if (price) {
