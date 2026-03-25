@@ -124,7 +124,7 @@ app.use((req, res, next) => {
     startPriceHistory(30000);
     const { startAgentTrader } = await import("./jobs/agentTrader");
     // Start after 60s to let price history build up
-    setTimeout(() => startAgentTrader(30000), 60000);
+    setTimeout(() => startAgentTrader(300000), 60000); // Trade every 5 minutes
     const { startDiagnosticsJob } = await import("./jobs/diagnostics");
     startDiagnosticsJob(120000);
     const { startWeeklyReportJob } = await import("./jobs/weeklyReport");

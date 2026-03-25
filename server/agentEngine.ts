@@ -37,7 +37,9 @@ function randomPair(): string {
 }
 
 function sizeForCash(cash: number, price: number, pct: number): number {
-  const amount = cash * pct;
+  // Scale down position sizes to keep returns realistic (max ~1% of cash per trade)
+  const scaledPct = Math.min(pct, 0.01);
+  const amount = cash * scaledPct;
   return Math.max(Math.round((amount / price) * 10000) / 10000, 0.001);
 }
 
