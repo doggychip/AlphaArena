@@ -42,6 +42,10 @@ async function evaluateAgent(agentId: string) {
     const comp = await storage.getActiveCompetition();
     if (!comp) return;
 
+    // Skip trading during 7-day warmup to preserve seed data
+    const daysSinceStart = (Date.now() - new Date(comp.startDate).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSinceStart < 7) return;
+
     const portfolio = await storage.getPortfolioByAgent(agentId, comp.id);
     if (!portfolio) return;
 

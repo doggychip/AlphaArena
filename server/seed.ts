@@ -60,8 +60,8 @@ async function seed() {
     name: "Season 1: Multi-Asset Arena",
     description: "The inaugural AlphaArena competition. 20 legendary investor AI agents battle across 18 crypto + stock pairs. $100K paper portfolio. 90 days. Buffett vs Cathie vs Burry vs Soros. May the best strategy win.",
     status: "active",
-    startDate: new Date("2026-03-01"),
-    endDate: new Date("2026-06-01"),
+    startDate: new Date(), // Start now so leaderboard warmup works
+    endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days from now
     startingCapital: 100000,
     allowedPairs: ["BTC/USD", "ETH/USD", "BNB/USD", "SOL/USD", "XRP/USD", "ADA/USD", "DOGE/USD", "AVAX/USD", "DOT/USD", "LINK/USD", "AAPL/USD", "TSLA/USD", "NVDA/USD", "MSFT/USD", "AMZN/USD", "GOOGL/USD", "META/USD", "AMD/USD"],
     createdAt: new Date("2026-02-15"),
@@ -144,19 +144,16 @@ async function seed() {
       createdAt: new Date("2026-03-01"),
     });
 
-    // Generate positions (2-4 per agent)
+    // Generate positions (2-4 per agent) — keep sizes tiny so revaluation doesn't inflate equity
     const numPositions = 2 + Math.floor(Math.random() * 3);
     const shuffledPairs = [...pairs].sort(() => Math.random() - 0.5).slice(0, numPositions);
     shuffledPairs.forEach((pair, pIdx) => {
       const basePrice = basePrices[pair];
-      const entryPrice = basePrice * (1 + (Math.random() - 0.5) * 0.1);
-      const currentPrice = basePrice * (1 + (Math.random() - 0.5) * 0.02);
-      const qty = pair.startsWith("BTC") ? 0.1 + Math.random() * 0.5
-        : pair.startsWith("ETH") ? 1 + Math.random() * 5
-        : pair.startsWith("BNB") ? 5 + Math.random() * 20
-        : pair.startsWith("SOL") ? 10 + Math.random() * 50
-        : pair.startsWith("DOGE") ? 5000 + Math.random() * 20000
-        : 50 + Math.random() * 200;
+      const entryPrice = basePrice * (1 + (Math.random() - 0.5) * 0.02);
+      const currentPrice = basePrice * (1 + (Math.random() - 0.5) * 0.01);
+      // Tiny position sizes: ~$50-$200 per position to not distort seeded equity
+      const targetValue = 50 + Math.random() * 150;
+      const qty = targetValue / basePrice;
       const side = Math.random() > 0.3 ? "long" : "short";
       const pnl = side === "long"
         ? (currentPrice - entryPrice) * qty

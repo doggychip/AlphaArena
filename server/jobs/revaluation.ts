@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db";
-import { positions, portfolios } from "@shared/schema";
+import { positions, portfolios, competitions } from "@shared/schema";
 import { getCurrentPrices } from "../prices";
 import { log } from "../index";
 
@@ -11,6 +11,14 @@ export function startRevaluationJob(intervalMs = 30000) {
 
 async function revaluateAll() {
   try {
+    // Skip revaluation during warmup period to preserve seed data
+    const activeComp = await db.select().from(competitions)
+      .where(eq(competitions.status, "active")).limit(1);
+    if (activeComp.length > 0) {
+      const daysSinceStart = (Date.now() - new Date(activeComp[0].startDate).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceStart < 7) return;
+    }
+
     const { prices } = getCurrentPrices();
     const priceMap = new Map(prices.map(p => [p.pair, p.price]));
 
