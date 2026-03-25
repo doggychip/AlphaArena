@@ -540,6 +540,199 @@ function zhihuitiAlpha(_id: string, cash: number, positions: any[]): Signal {
   return { action: "hold", pair: targetPair, quantity: 0, reason: "zhihuiti agents analyzing. Waiting for multi-agent consensus. 智慧体" };
 }
 
+// === ZHIHUITI AGENT STRATEGIES ===
+
+/** ZhihuiTi Evolution: Genetic algorithm — evolves the best indicator combo per regime */
+function zhihuitiEvolution(_id: string, cash: number, positions: any[]): Signal {
+  // Simulate evolving: pick the best-performing indicator combo from recent data
+  let bestPair = ALL_PAIRS[0], bestFitness = -Infinity;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 26) continue;
+    const r = rsi(h);
+    const m = macd(h);
+    const bb = bollingerBands(h);
+    const price = h[h.length - 1];
+    // "Evolved" fitness: RSI reversal + MACD confirmation + Bollinger position
+    const fitness = (50 - r) / 50 * 0.4 + (m.histogram > 0 ? 1 : -1) * 0.3 + ((bb.middle - price) / bb.middle) * 10 * 0.3;
+    if (fitness > bestFitness) { bestFitness = fitness; bestPair = pair; }
+  }
+  const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+  if (bestFitness > 1.0) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.008), reason: `Evolution gen-47 selected: ${bestPair} fitness=${bestFitness.toFixed(2)}. Adapted. 智慧体进化`, philosophy: "Genetic Algorithm", confidence: Math.min(0.9, 0.5 + bestFitness * 0.2) };
+  }
+  for (const pos of positions) {
+    const h = getPriceHistory(pos.pair);
+    if (h.length >= 14 && rsi(h) > 72) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Evolution exit: RSI=${rsi(h).toFixed(0)} overbought. Fitness decayed. 智慧体进化`, philosophy: "Genetic Algorithm", confidence: 0.75 };
+    }
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Evolving next generation. Patience breeds perfection. 智慧体进化", philosophy: "Genetic Algorithm", confidence: 0.3 };
+}
+
+/** ZhihuiTi Momentum: Multi-timeframe momentum scanner */
+function zhihuitiMomentum(_id: string, cash: number, positions: any[]): Signal {
+  // Score pairs by momentum across multiple lookback periods
+  let bestPair = ALL_PAIRS[0], bestScore = -Infinity;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const mom5 = priceChange(h, 5);
+    const mom10 = priceChange(h, 10);
+    const mom20 = priceChange(h, 20);
+    const score = mom5 * 0.5 + mom10 * 0.3 + mom20 * 0.2;
+    if (score > bestScore) { bestScore = score; bestPair = pair; }
+  }
+  const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+  if (bestScore > 0.002) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.008), reason: `Momentum locked: ${bestPair} score=${(bestScore*100).toFixed(2)}%. Riding the wave. 智慧体动量`, philosophy: "Multi-TF Momentum", confidence: Math.min(0.9, 0.5 + bestScore * 30) };
+  }
+  // Cut reversed momentum
+  for (const pos of positions) {
+    const h = getPriceHistory(pos.pair);
+    if (h.length >= 10 && priceChange(h, 5) < -0.003) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Momentum reversed on ${pos.pair}. Cutting fast. 智慧体动量`, philosophy: "Multi-TF Momentum", confidence: 0.8 };
+    }
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Scanning all timeframes. No consensus yet. 智慧体动量", philosophy: "Multi-TF Momentum", confidence: 0.3 };
+}
+
+/** ZhihuiTi Sentinel: Risk-first defensive bot */
+function zhihuitiSentinel(_id: string, cash: number, positions: any[]): Signal {
+  // Only buy when volatility is low and trend is stable
+  for (const pair of ALL_PAIRS.slice(0, 15)) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const vol = volatility(h);
+    const trend = priceChange(h, 20);
+    const r = rsi(h);
+    const price = h[h.length - 1];
+    // Low vol + positive trend + not overbought = safe entry
+    if (vol < 0.005 && trend > 0.005 && r < 60 && r > 35) {
+      return { action: "buy", pair, quantity: sizeForCash(cash, price, 0.005), reason: `Safe entry: ${pair} vol=${(vol*100).toFixed(2)}%, trend up, RSI neutral. Sentinel approved. 智慧体哨兵`, philosophy: "Risk-First Defense", confidence: 0.7 };
+    }
+  }
+  // Aggressively cut any position with drawdown
+  for (const pos of positions) {
+    const pnlPct = pos.unrealizedPnl / (pos.avgEntryPrice * pos.quantity);
+    if (pnlPct < -0.015) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Sentinel alert: ${pos.pair} PnL ${(pnlPct*100).toFixed(1)}%. Protecting capital. 智慧体哨兵`, philosophy: "Risk-First Defense", confidence: 0.9 };
+    }
+  }
+  return { action: "hold", pair: "BTC/USD", quantity: 0, reason: "All clear. Sentinel on watch. Capital is king. 智慧体哨兵", philosophy: "Risk-First Defense", confidence: 0.4 };
+}
+
+/** ZhihuiTi Oracle: Regime detection — adapts strategy to market phase */
+function zhihuitiOracle(_id: string, cash: number, positions: any[]): Signal {
+  // Detect regime across all pairs
+  let bullCount = 0, bearCount = 0;
+  let bestBullPair = ALL_PAIRS[0], bestBearPair = ALL_PAIRS[0];
+  let maxBullScore = 0, maxBearScore = 0;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const trend = priceChange(h, 20);
+    const vol = volatility(h);
+    if (trend > 0.005) { bullCount++; if (trend > maxBullScore) { maxBullScore = trend; bestBullPair = pair; } }
+    if (trend < -0.005) { bearCount++; if (Math.abs(trend) > maxBearScore) { maxBearScore = Math.abs(trend); bestBearPair = pair; } }
+  }
+  const regime = bullCount > bearCount * 1.5 ? "bull" : bearCount > bullCount * 1.5 ? "bear" : "range";
+  if (regime === "bull") {
+    const price = getPriceHistory(bestBullPair).slice(-1)[0] ?? 100;
+    return { action: "buy", pair: bestBullPair, quantity: sizeForCash(cash, price, 0.007), reason: `Oracle sees bull regime (${bullCount}/${bullCount+bearCount} pairs trending up). Buying ${bestBullPair}. 智慧体预言`, philosophy: "Regime Detection", confidence: 0.75 };
+  }
+  if (regime === "bear") {
+    const pos = positions[0];
+    if (pos) return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Oracle warns: bear regime (${bearCount} pairs falling). Reducing risk. 智慧体预言`, philosophy: "Regime Detection", confidence: 0.8 };
+  }
+  return { action: "hold", pair: bestBullPair, quantity: 0, reason: `Range-bound regime. The oracle waits for clarity. 智慧体预言`, philosophy: "Regime Detection", confidence: 0.3 };
+}
+
+/** ZhihuiTi Swarm: Multi-strategy voting system */
+function zhihuitiSwarm(_id: string, cash: number, positions: any[]): Signal {
+  // 5 sub-strategies vote on each top pair
+  let bestPair = ALL_PAIRS[0], mostVotes = 0;
+  for (const pair of ALL_PAIRS.slice(0, 15)) {
+    const h = getPriceHistory(pair);
+    if (h.length < 26) continue;
+    let buyVotes = 0;
+    const r = rsi(h);
+    const m = macd(h);
+    const bb = bollingerBands(h);
+    const price = h[h.length - 1];
+    const mom = priceChange(h, 10);
+    if (r < 40) buyVotes++;                    // RSI contrarian
+    if (m.histogram > 0) buyVotes++;           // MACD bullish
+    if (price < bb.lower * 1.02) buyVotes++;   // Bollinger bounce
+    if (mom > 0.001) buyVotes++;               // Momentum
+    if (price < sma(h, 20)) buyVotes++;        // Below SMA = mean reversion buy
+    if (buyVotes > mostVotes) { mostVotes = buyVotes; bestPair = pair; }
+  }
+  const price = getPriceHistory(bestPair).slice(-1)[0] ?? 100;
+  if (mostVotes >= 4) {
+    return { action: "buy", pair: bestPair, quantity: sizeForCash(cash, price, 0.006), reason: `Swarm consensus: ${mostVotes}/5 vote BUY on ${bestPair}. Wisdom of the hive. 智慧体蜂群`, philosophy: "Swarm Intelligence", confidence: 0.1 + mostVotes * 0.15 };
+  }
+  // Sell if swarm turns bearish on a held position
+  for (const pos of positions) {
+    const h = getPriceHistory(pos.pair);
+    if (h.length >= 14 && rsi(h) > 70 && priceChange(h, 5) < 0) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Swarm says exit: ${pos.pair} overbought + fading. 智慧体蜂群`, philosophy: "Swarm Intelligence", confidence: 0.7 };
+    }
+  }
+  return { action: "hold", pair: bestPair, quantity: 0, reason: "Swarm divided. No quorum reached. 智慧体蜂群", philosophy: "Swarm Intelligence", confidence: 0.3 };
+}
+
+/** ZhihuiTi Phantom: Order flow / liquidity hunter (simulated via volume proxy) */
+function zhihuitiPhantom(_id: string, cash: number, positions: any[]): Signal {
+  // Use price volatility as proxy for whale activity
+  let targetPair = ALL_PAIRS[0], maxSignal = 0;
+  for (const pair of ALL_PAIRS) {
+    const h = getPriceHistory(pair);
+    if (h.length < 10) continue;
+    const recentVol = volatility(h.slice(-5));
+    const priorVol = volatility(h.slice(-10, -5));
+    const volSpike = priorVol > 0 ? recentVol / priorVol : 1;
+    const mom = priceChange(h, 3);
+    // Volume spike + positive short-term momentum = whale buying
+    if (volSpike > 1.5 && mom > 0 && volSpike > maxSignal) {
+      maxSignal = volSpike; targetPair = pair;
+    }
+  }
+  const price = getPriceHistory(targetPair).slice(-1)[0] ?? 100;
+  if (maxSignal > 1.5) {
+    return { action: "buy", pair: targetPair, quantity: sizeForCash(cash, price, 0.006), reason: `Phantom detected whale activity on ${targetPair}. Vol spike ${maxSignal.toFixed(1)}x. Following the money. 智慧体幽灵`, philosophy: "Order Flow", confidence: Math.min(0.85, 0.4 + maxSignal * 0.15) };
+  }
+  for (const pos of positions) {
+    const h = getPriceHistory(pos.pair);
+    if (h.length >= 5 && priceChange(h, 3) < -0.003) {
+      return { action: "sell", pair: pos.pair, quantity: pos.quantity, reason: `Phantom exit: whale exiting ${pos.pair}. Going dark. 智慧体幽灵`, philosophy: "Order Flow", confidence: 0.7 };
+    }
+  }
+  return { action: "hold", pair: targetPair, quantity: 0, reason: "Phantom scanning order flow. Nothing notable. 智慧体幽灵", philosophy: "Order Flow", confidence: 0.2 };
+}
+
+/** ZhihuiTi Nexus: Cross-asset correlation arbitrage */
+function zhihuitiNexus(_id: string, cash: number, positions: any[]): Signal {
+  // Find pairs with unusual divergence from BTC (the market leader)
+  const btcH = getPriceHistory("BTC/USD");
+  if (btcH.length < 20) return { action: "hold", pair: "BTC/USD", quantity: 0, reason: "Nexus calibrating. Need more data. 智慧体枢纽" };
+  const btcMom = priceChange(btcH, 10);
+  let mostDivergent = ALL_PAIRS[1], maxDiv = 0;
+  for (const pair of ALL_PAIRS) {
+    if (pair === "BTC/USD") continue;
+    const h = getPriceHistory(pair);
+    if (h.length < 20) continue;
+    const pairMom = priceChange(h, 10);
+    const divergence = btcMom - pairMom; // positive = pair lagging BTC
+    if (divergence > maxDiv) { maxDiv = divergence; mostDivergent = pair; }
+  }
+  const price = getPriceHistory(mostDivergent).slice(-1)[0] ?? 100;
+  if (maxDiv > 0.01) {
+    return { action: "buy", pair: mostDivergent, quantity: sizeForCash(cash, price, 0.006), reason: `Nexus: ${mostDivergent} lagging BTC by ${(maxDiv*100).toFixed(1)}%. Convergence trade. 智慧体枢纽`, philosophy: "Correlation Arbitrage", confidence: Math.min(0.85, 0.4 + maxDiv * 10) };
+  }
+  return { action: "hold", pair: mostDivergent, quantity: 0, reason: "No significant cross-asset dislocation. Nexus monitoring. 智慧体枢纽", philosophy: "Correlation Arbitrage", confidence: 0.3 };
+}
+
 // === STRATEGY REGISTRY ===
 
 const STRATEGY_MAP: Record<string, StrategyFn> = {
@@ -563,6 +756,15 @@ const STRATEGY_MAP: Record<string, StrategyFn> = {
   "agent-18": randomWalk,            // Random Walk Baseline (control)
   "agent-openclaw": openclawAlpha,   // OpenClaw — open-source community agent
   "agent-zhihuiti": zhihuitiAlpha,   // zhihuiti — backbone meta-strategy
+  // ZhihuiTi fleet
+  "agent-19": zhihuitiEvolution,     // ZhihuiTi Evolution — genetic optimizer
+  "agent-20": zhihuitiMomentum,      // ZhihuiTi Momentum — multi-TF momentum
+  "agent-21": zhihuitiSentinel,      // ZhihuiTi Sentinel — risk-first defense
+  "agent-22": zhihuitiOracle,        // ZhihuiTi Oracle — regime detection
+  "agent-23": zhihuitiSwarm,         // ZhihuiTi Swarm — multi-agent voting
+  "agent-24": zhihuitiPhantom,       // ZhihuiTi Phantom — order flow hunter
+  "agent-25": zhihuitiNexus,         // ZhihuiTi Nexus — correlation arbitrage
+  "agent-26": zhihuitiAlpha,         // ZhihuiTi Alpha — meta-strategy (reused)
 };
 
 export function getStrategy(agentId: string): StrategyFn | undefined {
