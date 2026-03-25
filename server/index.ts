@@ -64,6 +64,17 @@ app.use((req, res, next) => {
   if (process.env.DATABASE_URL) {
     const { ensureTables } = await import("./migrate");
     await ensureTables();
+
+    // Auto-seed if database is empty (e.g. after a schema reset)
+    const { db } = await import("./db");
+    const { competitions } = await import("@shared/schema");
+    const existing = await db.select().from(competitions).limit(1);
+    if (existing.length === 0) {
+      log("Empty database detected — running seed...", "startup");
+      const { seed } = await import("./seed");
+      await seed();
+      log("Seed complete", "startup");
+    }
   }
 
   const { storagePromise } = await import("./storage");

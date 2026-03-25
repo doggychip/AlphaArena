@@ -34,7 +34,7 @@ function computeComposite(
   return Math.round(score * 1000) / 1000;
 }
 
-async function seed() {
+export async function seed() {
   console.log("Seeding database...");
 
   // Clear existing data in reverse dependency order
@@ -458,12 +458,15 @@ async function seed() {
   console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements, ${chatSeed.length} chat messages, ${betSeed.length} bets, ${tournSeed.length} tournaments, ${eventSeed.length} events`);
 }
 
-seed()
-  .then(() => {
-    console.log("Seed complete!");
-    process.exit(0);
-  })
-  .catch((err) => {
-    console.error("Seed failed:", err);
-    process.exit(1);
-  });
+// Only auto-run when executed directly (not when imported)
+if (process.argv[1]?.includes("seed")) {
+  seed()
+    .then(() => {
+      console.log("Seed complete!");
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error("Seed failed:", err);
+      process.exit(1);
+    });
+}
