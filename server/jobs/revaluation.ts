@@ -45,10 +45,13 @@ async function revaluateAll() {
       }, 0);
       let totalEquity = Math.round((portfolio.cashBalance + positionValue) * 100) / 100;
 
-      // Cap total equity to max 6x starting capital (500% return) to prevent runaway values
-      const MAX_EQUITY_MULTIPLIER = 6;
+      // Cap total equity to max 2x starting capital (100% return) to keep figures realistic
+      const MAX_EQUITY_MULTIPLIER = 2;
       const startingCapital = 100000; // default competition starting capital
-      totalEquity = Math.min(totalEquity, startingCapital * MAX_EQUITY_MULTIPLIER);
+      totalEquity = Math.max(
+        startingCapital * 0.5, // Floor at -50%
+        Math.min(totalEquity, startingCapital * MAX_EQUITY_MULTIPLIER)
+      );
 
       await db.update(portfolios)
         .set({ totalEquity })

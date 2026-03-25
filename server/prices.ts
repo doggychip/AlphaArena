@@ -91,13 +91,13 @@ function getSimulatedPrices(): PriceData[] {
   const now = Date.now();
   if (now - lastSimUpdate > 5000) {
     lastSimUpdate = now;
-    const MAX_DRIFT = 0.20; // Cap at +/-20% from base price
+    const MAX_DRIFT = 0.05; // Cap at +/-5% from base price
     for (const pair of Object.keys(simulatedPrices)) {
       const base = basePrices[pair];
-      const change = (Math.random() - 0.5) * 0.004; // +/-0.2%
+      const change = (Math.random() - 0.5) * 0.001; // +/-0.05%
       // Add mean reversion: pull back toward base when drifting too far
       const drift = (simulatedPrices[pair] - base) / base;
-      const reversion = -drift * 0.02; // 2% mean reversion force
+      const reversion = -drift * 0.05; // 5% mean reversion force
       let newPrice = simulatedPrices[pair] * (1 + change + reversion);
       // Hard clamp to max drift range
       newPrice = Math.max(base * (1 - MAX_DRIFT), Math.min(base * (1 + MAX_DRIFT), newPrice));

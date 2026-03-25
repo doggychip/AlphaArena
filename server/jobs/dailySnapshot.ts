@@ -79,6 +79,15 @@ export async function updateLeaderboard() {
   if (!activeComp.length) return;
 
   const comp = activeComp[0];
+
+  // Don't overwrite seed leaderboard data until at least 7 days of snapshots exist
+  // This ensures the initial seed values are visible while the simulation warms up
+  const daysSinceStart = (Date.now() - new Date(comp.startDate).getTime()) / (1000 * 60 * 60 * 24);
+  if (daysSinceStart < 7) {
+    log("Skipping leaderboard update — warming up (need 7 days of history)", "snapshot");
+    return;
+  }
+
   const allPortfolios = await db.select().from(portfolios)
     .where(eq(portfolios.competitionId, comp.id));
 
@@ -98,9 +107,9 @@ export async function updateLeaderboard() {
       .orderBy(asc(dailySnapshots.date));
 
     const returns = snapshots.map(s => s.dailyReturn);
-    // Clamp totalReturn to realistic range (-100% to +500%)
+    // Clamp totalReturn to realistic range (-50% to +100%)
     const rawReturn = (portfolio.totalEquity - comp.startingCapital) / comp.startingCapital;
-    const totalReturn = Math.max(-1.0, Math.min(5.0, rawReturn));
+    const totalReturn = Math.max(-0.5, Math.min(1.0, rawReturn));
     const sharpe = computeSharpe(returns) ?? 0;
     const sortino = computeSortino(returns) ?? 0;
     const equities = snapshots.map(s => s.totalEquity);

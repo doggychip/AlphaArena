@@ -4,9 +4,9 @@ import { getStrategy, getAllStrategyAgentIds } from "../agentEngine";
 import { executeTrade } from "../tradeExecutor";
 
 let tickIndex = 0;
-const AGENTS_PER_TICK = 3;
-const MAX_POSITIONS = 4;
-const MAX_POSITION_VALUE_PCT = 0.25; // No single position > 25% of starting capital
+const AGENTS_PER_TICK = 1;
+const MAX_POSITIONS = 3;
+const MAX_POSITION_VALUE_PCT = 0.05; // No single position > 5% of starting capital
 
 export function startAgentTrader(intervalMs = 30000) {
   setInterval(runTick, intervalMs);
