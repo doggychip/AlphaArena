@@ -91,10 +91,17 @@ function getSimulatedPrices(): PriceData[] {
   const now = Date.now();
   if (now - lastSimUpdate > 5000) {
     lastSimUpdate = now;
+    const MAX_DRIFT = 0.20; // Cap at +/-20% from base price
     for (const pair of Object.keys(simulatedPrices)) {
+      const base = basePrices[pair];
       const change = (Math.random() - 0.5) * 0.004; // +/-0.2%
-      simulatedPrices[pair] =
-        Math.round(simulatedPrices[pair] * (1 + change) * 100) / 100;
+      // Add mean reversion: pull back toward base when drifting too far
+      const drift = (simulatedPrices[pair] - base) / base;
+      const reversion = -drift * 0.02; // 2% mean reversion force
+      let newPrice = simulatedPrices[pair] * (1 + change + reversion);
+      // Hard clamp to max drift range
+      newPrice = Math.max(base * (1 - MAX_DRIFT), Math.min(base * (1 + MAX_DRIFT), newPrice));
+      simulatedPrices[pair] = Math.round(newPrice * 100) / 100;
     }
   }
   return Object.entries(simulatedPrices).map(([pair, price]) => {
@@ -104,11 +111,25 @@ function getSimulatedPrices(): PriceData[] {
   });
 }
 
-// Initialize simulated prices with slight variations
+// Initialize simulated prices with slight variations (max +/-0.5%)
 for (const pair of Object.keys(simulatedPrices)) {
   const change = (Math.random() - 0.5) * 0.01;
   simulatedPrices[pair] =
     Math.round(basePrices[pair] * (1 + change) * 100) / 100;
+}
+
+// When live prices are available, sync simulated base prices so they stay realistic
+export function syncSimulatedBasePrices(livePrices: PriceData[]) {
+  for (const p of livePrices) {
+    if (basePrices[p.pair] !== undefined) {
+      basePrices[p.pair] = p.price;
+      // Also reset simulated price if it has drifted far from new base
+      const drift = Math.abs(simulatedPrices[p.pair] - p.price) / p.price;
+      if (drift > 0.05) {
+        simulatedPrices[p.pair] = p.price;
+      }
+    }
+  }
 }
 
 async function fetchCoinGeckoPrices(): Promise<PriceData[] | null> {
@@ -189,6 +210,11 @@ async function refreshPrices() {
     fetchStockPrices().catch(() => [] as PriceData[]),
   ]);
   const allLive = [...(livePrices ?? []), ...stockPrices];
+
+  // Sync live prices into simulated base so simulated prices stay realistic
+  if (allLive.length > 0) {
+    syncSimulatedBasePrices(allLive);
+  }
 
   // Fill in any missing pairs from simulated prices so every pair always has a price
   const livePairSet = new Set(allLive.map(p => p.pair));

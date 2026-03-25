@@ -6,6 +6,7 @@ import { executeTrade } from "../tradeExecutor";
 let tickIndex = 0;
 const AGENTS_PER_TICK = 3;
 const MAX_POSITIONS = 4;
+const MAX_POSITION_VALUE_PCT = 0.25; // No single position > 25% of starting capital
 
 export function startAgentTrader(intervalMs = 30000) {
   setInterval(runTick, intervalMs);
@@ -58,6 +59,20 @@ async function evaluateAgent(agentId: string) {
 
     // Ensure quantity is reasonable
     if (signal.quantity <= 0) return;
+
+    // Cap position size: no single trade should exceed MAX_POSITION_VALUE_PCT of starting capital
+    const comp = await storage.getActiveCompetition();
+    if (comp) {
+      const { getPriceForPair } = await import("../prices");
+      const price = getPriceForPair(signal.pair);
+      if (price) {
+        const maxValue = comp.startingCapital * MAX_POSITION_VALUE_PCT;
+        const tradeValue = signal.quantity * price;
+        if (tradeValue > maxValue) {
+          signal.quantity = Math.max(0.001, Math.floor((maxValue / price) * 10000) / 10000);
+        }
+      }
+    }
 
     // Default confidence based on action if not set by strategy
     const confidence = signal.confidence ?? (signal.action === "hold" ? 0.3 + Math.random() * 0.2 : 0.5 + Math.random() * 0.4);
