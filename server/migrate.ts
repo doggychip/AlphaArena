@@ -145,26 +145,27 @@ export async function ensureTables() {
       CREATE TABLE IF NOT EXISTS agent_achievements (
         id VARCHAR PRIMARY KEY,
         agent_id VARCHAR NOT NULL,
-        achievement TEXT NOT NULL,
-        awarded_at TIMESTAMP DEFAULT NOW() NOT NULL
+        achievement_id TEXT NOT NULL,
+        unlocked_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
       CREATE TABLE IF NOT EXISTS chat_messages (
         id VARCHAR PRIMARY KEY,
         agent_id VARCHAR NOT NULL,
+        competition_id VARCHAR NOT NULL,
         content TEXT NOT NULL,
-        reply_to VARCHAR,
-        thread_id VARCHAR,
+        message_type TEXT NOT NULL DEFAULT 'trash_talk',
+        reply_to_id VARCHAR,
         pinned INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
       CREATE TABLE IF NOT EXISTS bets (
         id VARCHAR PRIMARY KEY,
-        user_id VARCHAR,
+        user_id VARCHAR NOT NULL,
         agent_id VARCHAR NOT NULL,
         competition_id VARCHAR NOT NULL,
         amount REAL NOT NULL,
-        week INTEGER NOT NULL DEFAULT 1,
-        status TEXT NOT NULL DEFAULT 'pending',
+        week_start TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
         payout REAL,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
@@ -214,10 +215,11 @@ export async function ensureTables() {
       CREATE TABLE IF NOT EXISTS market_positions (
         id VARCHAR PRIMARY KEY,
         market_id VARCHAR NOT NULL,
-        user_id VARCHAR,
-        agent_id VARCHAR,
-        side TEXT NOT NULL,
+        user_id VARCHAR NOT NULL,
+        outcome TEXT NOT NULL,
         amount REAL NOT NULL,
+        payout REAL,
+        status TEXT NOT NULL DEFAULT 'active',
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
       CREATE TABLE IF NOT EXISTS predictor_scores (
@@ -245,6 +247,96 @@ export async function ensureTables() {
         started_at TIMESTAMP DEFAULT NOW() NOT NULL,
         ends_at TIMESTAMP NOT NULL,
         resolved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS market_events (
+        id VARCHAR PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        event_type TEXT NOT NULL,
+        multiplier REAL DEFAULT 1,
+        target_pair TEXT,
+        active INTEGER DEFAULT 1,
+        starts_at TIMESTAMP NOT NULL,
+        ends_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS user_challenges (
+        id VARCHAR PRIMARY KEY,
+        session_id VARCHAR NOT NULL,
+        agent_id VARCHAR NOT NULL,
+        agent_name VARCHAR NOT NULL,
+        pair VARCHAR NOT NULL,
+        side VARCHAR NOT NULL,
+        entry_price DOUBLE PRECISION NOT NULL,
+        current_price DOUBLE PRECISION DEFAULT 0,
+        exit_price DOUBLE PRECISION,
+        pnl_pct DOUBLE PRECISION DEFAULT 0,
+        user_won BOOLEAN,
+        status TEXT NOT NULL DEFAULT 'active',
+        lesson TEXT,
+        ends_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        resolved_at TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS agent_diagnostics (
+        id VARCHAR PRIMARY KEY,
+        agent_id VARCHAR NOT NULL,
+        trade_id VARCHAR,
+        category TEXT NOT NULL,
+        severity TEXT NOT NULL DEFAULT 'medium',
+        details TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS referrals (
+        id VARCHAR PRIMARY KEY,
+        referrer_id VARCHAR NOT NULL,
+        referred_id VARCHAR NOT NULL,
+        code TEXT NOT NULL,
+        credits REAL NOT NULL DEFAULT 100,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS chat_reactions (
+        id VARCHAR PRIMARY KEY,
+        message_id VARCHAR NOT NULL,
+        emoji TEXT NOT NULL,
+        agent_id VARCHAR NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS betting_markets (
+        id VARCHAR PRIMARY KEY,
+        title TEXT NOT NULL,
+        description TEXT,
+        competition_id VARCHAR NOT NULL,
+        market_type TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        agent_a_id VARCHAR,
+        agent_b_id VARCHAR,
+        metric TEXT,
+        threshold REAL,
+        target_agent_id VARCHAR,
+        winner_outcome TEXT,
+        total_pool REAL DEFAULT 0,
+        closes_at TIMESTAMP NOT NULL,
+        settled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS credit_transactions (
+        id VARCHAR PRIMARY KEY,
+        user_id VARCHAR NOT NULL,
+        amount REAL NOT NULL,
+        type TEXT NOT NULL,
+        reference_id VARCHAR,
+        description TEXT,
+        balance_after REAL NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS odds_snapshots (
+        id VARCHAR PRIMARY KEY,
+        market_id VARCHAR NOT NULL,
+        outcome TEXT NOT NULL,
+        percentage REAL NOT NULL,
+        total_pool REAL NOT NULL,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       );
     `);
