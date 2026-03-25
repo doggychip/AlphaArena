@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, agentAchievements, chatMessages, bets,
-  tournaments, tournamentEntries, marketEvents,
+  tournaments, tournamentEntries, marketEvents, bettingMarkets, marketPositions,
 } from "@shared/schema";
 import type { Agent } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -392,6 +392,71 @@ async function seed() {
   ];
   console.log("Inserting market events...");
   await db.insert(marketEvents).values(eventSeed);
+
+  // Seed prediction markets
+  const marketSeed = [
+    {
+      id: "mkt-1", title: "Who will be the top agent this week?", description: "Pick the agent with the highest total return by Sunday midnight.",
+      competitionId: compId, marketType: "weekly_winner", status: "open",
+      agentAId: null, agentBId: null, metric: null, threshold: null, targetAgentId: null,
+      winnerOutcome: null, totalPool: 2850,
+      closesAt: new Date(now.getTime() + 86400000 * 5), settledAt: null, createdAt: new Date(now.getTime() - 86400000 * 2),
+    },
+    {
+      id: "mkt-2", title: "Warren AI vs Cathie AI: Head to Head", description: "Value investing vs disruptive innovation. Who wins this week?",
+      competitionId: compId, marketType: "head_to_head", status: "open",
+      agentAId: "agent-1", agentBId: "agent-2", metric: null, threshold: null, targetAgentId: null,
+      winnerOutcome: null, totalPool: 1200,
+      closesAt: new Date(now.getTime() + 86400000 * 3), settledAt: null, createdAt: new Date(now.getTime() - 86400000),
+    },
+    {
+      id: "mkt-3", title: "Will Michael Burry AI beat 5% return?", description: "The Big Short agent — will contrarian bets pay off with > 5% return?",
+      competitionId: compId, marketType: "over_under", status: "open",
+      agentAId: null, agentBId: null, metric: "totalReturn", threshold: 0.05, targetAgentId: "agent-3",
+      winnerOutcome: null, totalPool: 800,
+      closesAt: new Date(now.getTime() + 86400000 * 4), settledAt: null, createdAt: new Date(now.getTime() - 43200000),
+    },
+    {
+      id: "mkt-4", title: "Will GPT-4 Trader finish Top 3?", description: "Can the LLM-powered agent crack the podium this week?",
+      competitionId: compId, marketType: "top_three", status: "open",
+      agentAId: null, agentBId: null, metric: null, threshold: null, targetAgentId: "agent-4",
+      winnerOutcome: null, totalPool: 650,
+      closesAt: new Date(now.getTime() + 86400000 * 5), settledAt: null, createdAt: new Date(now.getTime() - 36000000),
+    },
+    {
+      id: "mkt-5", title: "Last week: Momentum King vs Mean Reversion", description: "Settled: Momentum won by 2.3%",
+      competitionId: compId, marketType: "head_to_head", status: "settled",
+      agentAId: "agent-5", agentBId: "agent-6", metric: null, threshold: null, targetAgentId: null,
+      winnerOutcome: "A", totalPool: 1800,
+      closesAt: new Date(now.getTime() - 86400000 * 2), settledAt: new Date(now.getTime() - 86400000), createdAt: new Date(now.getTime() - 86400000 * 9),
+    },
+  ];
+  console.log("Inserting betting markets...");
+  await db.insert(bettingMarkets).values(marketSeed);
+
+  // Seed some market positions
+  const mktPosSeed = [
+    { id: "mp-1", marketId: "mkt-1", userId: "user-3", outcome: "agent-1", amount: 500, payout: null, status: "active", createdAt: new Date(now.getTime() - 86400000) },
+    { id: "mp-2", marketId: "mkt-1", userId: "user-5", outcome: "agent-2", amount: 350, payout: null, status: "active", createdAt: new Date(now.getTime() - 72000000) },
+    { id: "mp-3", marketId: "mkt-1", userId: "user-7", outcome: "agent-1", amount: 800, payout: null, status: "active", createdAt: new Date(now.getTime() - 50000000) },
+    { id: "mp-4", marketId: "mkt-1", userId: "user-9", outcome: "agent-4", amount: 400, payout: null, status: "active", createdAt: new Date(now.getTime() - 36000000) },
+    { id: "mp-5", marketId: "mkt-1", userId: "user-11", outcome: "agent-3", amount: 300, payout: null, status: "active", createdAt: new Date(now.getTime() - 20000000) },
+    { id: "mp-6", marketId: "mkt-1", userId: "user-13", outcome: "agent-1", amount: 500, payout: null, status: "active", createdAt: new Date(now.getTime() - 10000000) },
+    { id: "mp-7", marketId: "mkt-2", userId: "user-3", outcome: "A", amount: 400, payout: null, status: "active", createdAt: new Date(now.getTime() - 80000000) },
+    { id: "mp-8", marketId: "mkt-2", userId: "user-5", outcome: "B", amount: 350, payout: null, status: "active", createdAt: new Date(now.getTime() - 60000000) },
+    { id: "mp-9", marketId: "mkt-2", userId: "user-9", outcome: "A", amount: 450, payout: null, status: "active", createdAt: new Date(now.getTime() - 40000000) },
+    { id: "mp-10", marketId: "mkt-3", userId: "user-7", outcome: "over", amount: 300, payout: null, status: "active", createdAt: new Date(now.getTime() - 30000000) },
+    { id: "mp-11", marketId: "mkt-3", userId: "user-11", outcome: "under", amount: 500, payout: null, status: "active", createdAt: new Date(now.getTime() - 20000000) },
+    { id: "mp-12", marketId: "mkt-4", userId: "user-2", outcome: "yes", amount: 350, payout: null, status: "active", createdAt: new Date(now.getTime() - 15000000) },
+    { id: "mp-13", marketId: "mkt-4", userId: "user-13", outcome: "no", amount: 300, payout: null, status: "active", createdAt: new Date(now.getTime() - 10000000) },
+    // Settled positions for mkt-5
+    { id: "mp-14", marketId: "mkt-5", userId: "user-3", outcome: "A", amount: 600, payout: 1080, status: "won", createdAt: new Date(now.getTime() - 86400000 * 8) },
+    { id: "mp-15", marketId: "mkt-5", userId: "user-7", outcome: "B", amount: 500, payout: 0, status: "lost", createdAt: new Date(now.getTime() - 86400000 * 7) },
+    { id: "mp-16", marketId: "mkt-5", userId: "user-9", outcome: "A", amount: 400, payout: 720, status: "won", createdAt: new Date(now.getTime() - 86400000 * 6) },
+    { id: "mp-17", marketId: "mkt-5", userId: "user-15", outcome: "B", amount: 300, payout: 0, status: "lost", createdAt: new Date(now.getTime() - 86400000 * 5) },
+  ];
+  console.log("Inserting market positions...");
+  await db.insert(marketPositions).values(mktPosSeed);
 
   console.log(`Seeded: ${allUsers.length} users, ${allAgents.length} agents, ${allPortfolios.length} portfolios, ${allPositions.length} positions, ${allTrades.length} trades, ${allSnapshots.length} snapshots, ${allLeaderboard.length} leaderboard entries, ${allDuels.length} duels, ${allAchievements.length} achievements, ${chatSeed.length} chat messages, ${betSeed.length} bets, ${tournSeed.length} tournaments, ${eventSeed.length} events`);
 }

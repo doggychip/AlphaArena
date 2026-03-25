@@ -135,6 +135,11 @@ app.use((req, res, next) => {
     // Start heartAI community runner (10-minute interval)
     const { startHeartAIRunner } = await import("./jobs/heartaiRunner");
     startHeartAIRunner(10 * 60 * 1000);
+
+    const { startMarketSettlementJob } = await import("./jobs/marketSettlement");
+    startMarketSettlementJob(60000);
+    const { startAutoMarketJob } = await import("./jobs/autoMarkets");
+    startAutoMarketJob(3600000);
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT

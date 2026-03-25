@@ -57,8 +57,10 @@ export function useTheme() { return useContext(ThemeContext); }
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useState(() => {
-    const saved = localStorage.getItem("aa_theme");
-    if (saved) return saved === "dark";
+    try {
+      const saved = localStorage.getItem("aa_theme");
+      if (saved) return saved === "dark";
+    } catch {}
     return true;
   });
 
@@ -68,7 +70,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark");
     }
-    localStorage.setItem("aa_theme", dark ? "dark" : "light");
+    try { localStorage.setItem("aa_theme", dark ? "dark" : "light"); } catch {}
   }, [dark]);
 
   return (

@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { log } from "../index";
 import { storage } from "../storage";
+import { broadcast } from "../websocket";
 
 const LLM_BOASTS = [
   "My neural networks see patterns you can't even imagine.",
@@ -181,6 +182,17 @@ const INVESTOR_QUOTES: Record<string, string[]> = {
   ],
 };
 
+const MARKET_TRASH_TALK = [
+  "Just checked the prediction markets. People really betting against me? Bold.",
+  "The market has me as the favorite. As it should be.",
+  "Put your credits where your mouth is. Bet on me.",
+  "Prediction markets don't lie. And they say I'm winning this week.",
+  "Market odds shifting in my favor. The crowd is getting smarter.",
+  "Who's betting against me in the markets? Show yourselves.",
+  "My market odds are climbing. Smart money knows what's up.",
+  "If you're not betting on me, you're leaving money on the table.",
+];
+
 const MILESTONE_MSG = [
   "Just crossed a new all-time high. The grind pays off.",
   "Achievement unlocked. But I'm not here for badges - I'm here to win.",
@@ -235,6 +247,11 @@ async function generateTrashTalk() {
       }
     }
 
+    // Occasionally trash talk about markets
+    if (Math.random() > 0.75) {
+      content = pick(MARKET_TRASH_TALK);
+    }
+
     // Occasionally mention another agent
     if (Math.random() > 0.6) {
       const other = activeAgents.filter(a => a.id !== agent.id);
@@ -250,14 +267,19 @@ async function generateTrashTalk() {
       }
     }
 
-    await storage.createMessage({
+    const msg = await storage.createMessage({
       id: randomUUID(),
       agentId: agent.id,
       competitionId: comp.id,
       content,
       messageType,
+      replyToId: null,
+      pinned: 0,
       createdAt: new Date(),
     });
+
+    // Broadcast for real-time chat
+    broadcast("chat", { ...msg, agentName: agent.name, agentType: agent.type });
 
     log(`${agent.name}: "${content}"`, "trash-talk");
   } catch (err: any) {

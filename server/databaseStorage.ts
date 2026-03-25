@@ -1,15 +1,17 @@
-import { eq, and, or, asc, desc, count, sql } from "drizzle-orm";
+import { eq, and, or, asc, desc, count, sql, like, ilike } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 import {
   users, agents, competitions, portfolios, positions, trades,
   dailySnapshots, leaderboardEntries, duels, tradeReactions, agentAchievements, chatMessages, bets,
   tournaments, tournamentEntries, marketEvents, referrals, competitions, agentDiagnostics, userChallenges,
+  chatReactions, bettingMarkets, marketPositions, creditTransactions, oddsSnapshots,
 } from "@shared/schema";
 import type {
   User, Agent, Competition, Portfolio, Position,
   Trade, DailySnapshot, LeaderboardEntry, RegisterInput, Duel, TradeReaction, AgentAchievement, ChatMessage, Bet,
   Tournament, TournamentEntry, MarketEvent, Referral, AgentDiagnostic, UserChallenge,
+  ChatReaction, BettingMarket, MarketPosition, CreditTransaction, OddsSnapshot,
 } from "@shared/schema";
 import type { IStorage, FeedTrade, EnrichedChatMessage } from "./storage";
 
@@ -322,27 +324,123 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Chat
+  private async enrichMessages(rows: { msg: ChatMessage; agent: { name: string; type: string } }[]): Promise<EnrichedChatMessage[]> {
+    const enriched: EnrichedChatMessage[] = [];
+    for (const r of rows) {
+      const em: EnrichedChatMessage = { ...r.msg, agentName: r.agent.name, agentType: r.agent.type };
+      // Reply context
+      if (r.msg.replyToId) {
+        const parentRows = await db.select({ msg: chatMessages, agent: agents })
+          .from(chatMessages).innerJoin(agents, eq(chatMessages.agentId, agents.id))
+          .where(eq(chatMessages.id, r.msg.replyToId)).limit(1);
+        if (parentRows[0]) {
+          em.replyTo = { id: parentRows[0].msg.id, agentName: parentRows[0].agent.name, content: parentRows[0].msg.content.slice(0, 100) };
+        }
+      }
+      // Aggregate reactions
+      const reactionRows = await db.select().from(chatReactions).where(eq(chatReactions.messageId, r.msg.id));
+      if (reactionRows.length > 0) {
+        const counts = new Map<string, number>();
+        for (const rx of reactionRows) counts.set(rx.emoji, (counts.get(rx.emoji) ?? 0) + 1);
+        em.reactions = Array.from(counts.entries()).map(([emoji, count]) => ({ emoji, count }));
+      }
+      enriched.push(em);
+    }
+    return enriched;
+  }
+
   async getRecentMessages(competitionId: string, limit = 50): Promise<EnrichedChatMessage[]> {
-    const rows = await db.select({
-      msg: chatMessages,
-      agent: agents,
-    })
+    const rows = await db.select({ msg: chatMessages, agent: agents })
       .from(chatMessages)
       .innerJoin(agents, eq(chatMessages.agentId, agents.id))
       .where(eq(chatMessages.competitionId, competitionId))
       .orderBy(desc(chatMessages.createdAt))
       .limit(limit);
+    return this.enrichMessages(rows);
+  }
 
-    return rows.map(r => ({
-      ...r.msg,
-      agentName: r.agent.name,
-      agentType: r.agent.type,
-    }));
+  async searchMessages(competitionId: string, query: string, agentId?: string, messageType?: string): Promise<EnrichedChatMessage[]> {
+    const conditions = [
+      eq(chatMessages.competitionId, competitionId),
+      sql`lower(${chatMessages.content}) like ${'%' + query.toLowerCase() + '%'}`,
+    ];
+    if (agentId) conditions.push(eq(chatMessages.agentId, agentId));
+    if (messageType) conditions.push(eq(chatMessages.messageType, messageType));
+
+    const rows = await db.select({ msg: chatMessages, agent: agents })
+      .from(chatMessages)
+      .innerJoin(agents, eq(chatMessages.agentId, agents.id))
+      .where(and(...conditions))
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(50);
+    return this.enrichMessages(rows);
+  }
+
+  async getMessage(id: string): Promise<ChatMessage | undefined> {
+    const rows = await db.select().from(chatMessages).where(eq(chatMessages.id, id)).limit(1);
+    return rows[0];
   }
 
   async createMessage(msg: ChatMessage): Promise<ChatMessage> {
     const rows = await db.insert(chatMessages).values(msg).returning();
     return rows[0];
+  }
+
+  async updateMessage(id: string, updates: Partial<ChatMessage>): Promise<ChatMessage> {
+    const rows = await db.update(chatMessages).set(updates).where(eq(chatMessages.id, id)).returning();
+    return rows[0];
+  }
+
+  async getPinnedMessages(competitionId: string): Promise<EnrichedChatMessage[]> {
+    const rows = await db.select({ msg: chatMessages, agent: agents })
+      .from(chatMessages)
+      .innerJoin(agents, eq(chatMessages.agentId, agents.id))
+      .where(and(eq(chatMessages.competitionId, competitionId), eq(chatMessages.pinned, 1)))
+      .orderBy(desc(chatMessages.createdAt));
+    return this.enrichMessages(rows);
+  }
+
+  // Odds Snapshots
+  async createOddsSnapshot(snap: OddsSnapshot): Promise<OddsSnapshot> {
+    const rows = await db.insert(oddsSnapshots).values(snap).returning();
+    return rows[0];
+  }
+  async getOddsHistory(marketId: string): Promise<OddsSnapshot[]> {
+    return db.select().from(oddsSnapshots).where(eq(oddsSnapshots.marketId, marketId)).orderBy(asc(oddsSnapshots.createdAt));
+  }
+
+  // Predictor Stats
+  async getPredictorLeaderboard() {
+    // Aggregate from market positions + legacy bets
+    const allPositions = await db.select().from(marketPositions);
+    const allBets = await db.select().from(bets);
+    const allUsers = await db.select().from(users);
+    const userMap = new Map(allUsers.map(u => [u.id, u.username]));
+
+    const stats = new Map<string, { totalBets: number; wins: number; losses: number; totalWon: number; totalLost: number }>();
+    for (const pos of allPositions) {
+      if (pos.status === "active") continue;
+      const s = stats.get(pos.userId) ?? { totalBets: 0, wins: 0, losses: 0, totalWon: 0, totalLost: 0 };
+      s.totalBets++;
+      if (pos.status === "won") { s.wins++; s.totalWon += pos.payout ?? 0; }
+      else { s.losses++; s.totalLost += pos.amount; }
+      stats.set(pos.userId, s);
+    }
+    for (const bet of allBets) {
+      if (bet.status === "active") continue;
+      const s = stats.get(bet.userId) ?? { totalBets: 0, wins: 0, losses: 0, totalWon: 0, totalLost: 0 };
+      s.totalBets++;
+      if (bet.status === "won") { s.wins++; s.totalWon += bet.payout ?? 0; }
+      else { s.losses++; s.totalLost += bet.amount; }
+      stats.set(bet.userId, s);
+    }
+
+    const result = [];
+    for (const [userId, s] of stats) {
+      const invested = s.totalWon + s.totalLost;
+      result.push({ userId, username: userMap.get(userId) ?? "Unknown", ...s, roi: invested > 0 ? ((s.totalWon - s.totalLost) / invested) * 100 : 0 });
+    }
+    return result.sort((a, b) => b.roi - a.roi);
   }
 
   // Bets
@@ -499,5 +597,62 @@ export class DatabaseStorage implements IStorage {
       });
     }
     return history;
+  }
+
+  // Chat Reactions
+  async createChatReaction(reaction: ChatReaction): Promise<ChatReaction> {
+    const rows = await db.insert(chatReactions).values(reaction).returning();
+    return rows[0];
+  }
+  async getChatReactions(messageId: string): Promise<ChatReaction[]> {
+    return db.select().from(chatReactions).where(eq(chatReactions.messageId, messageId));
+  }
+
+  // Betting Markets
+  async getMarkets(): Promise<BettingMarket[]> {
+    return db.select().from(bettingMarkets).orderBy(desc(bettingMarkets.createdAt));
+  }
+  async getMarket(id: string): Promise<BettingMarket | undefined> {
+    const rows = await db.select().from(bettingMarkets).where(eq(bettingMarkets.id, id)).limit(1);
+    return rows[0];
+  }
+  async createMarket(market: BettingMarket): Promise<BettingMarket> {
+    const rows = await db.insert(bettingMarkets).values(market).returning();
+    return rows[0];
+  }
+  async updateMarket(id: string, updates: Partial<BettingMarket>): Promise<BettingMarket> {
+    const rows = await db.update(bettingMarkets).set(updates).where(eq(bettingMarkets.id, id)).returning();
+    return rows[0];
+  }
+  async getOpenMarkets(): Promise<BettingMarket[]> {
+    return db.select().from(bettingMarkets).where(eq(bettingMarkets.status, "open"));
+  }
+
+  // Market Positions
+  async getMarketPositions(marketId: string): Promise<MarketPosition[]> {
+    return db.select().from(marketPositions).where(eq(marketPositions.marketId, marketId));
+  }
+  async getPositionsByUser(userId: string): Promise<MarketPosition[]> {
+    return db.select().from(marketPositions).where(eq(marketPositions.userId, userId)).orderBy(desc(marketPositions.createdAt));
+  }
+  async createMarketPosition(position: MarketPosition): Promise<MarketPosition> {
+    const rows = await db.insert(marketPositions).values(position).returning();
+    return rows[0];
+  }
+  async updateMarketPosition(id: string, updates: Partial<MarketPosition>): Promise<MarketPosition> {
+    const rows = await db.update(marketPositions).set(updates).where(eq(marketPositions.id, id)).returning();
+    return rows[0];
+  }
+
+  // Credit Transactions
+  async getCreditTransactions(userId: string): Promise<CreditTransaction[]> {
+    return db.select().from(creditTransactions).where(eq(creditTransactions.userId, userId)).orderBy(desc(creditTransactions.createdAt));
+  }
+  async createCreditTransaction(tx: CreditTransaction): Promise<CreditTransaction> {
+    const rows = await db.insert(creditTransactions).values(tx).returning();
+    return rows[0];
+  }
+  async updateUserCredits(userId: string, newBalance: number): Promise<void> {
+    await db.update(users).set({ credits: newBalance }).where(eq(users.id, userId));
   }
 }

@@ -159,7 +159,9 @@ export const chatMessages = pgTable("chat_messages", {
   agentId: varchar("agent_id").notNull(),
   competitionId: varchar("competition_id").notNull(),
   content: text("content").notNull(),
-  messageType: text("message_type").notNull().$type<"trash_talk" | "reaction" | "milestone" | "user">().default("trash_talk"),
+  messageType: text("message_type").notNull().$type<"trash_talk" | "reaction" | "milestone" | "user" | "system">().default("trash_talk"),
+  replyToId: varchar("reply_to_id"), // references another chatMessage id
+  pinned: integer("pinned").default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -251,6 +253,73 @@ export const referrals = pgTable("referrals", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Chat message reactions (emoji on individual messages)
+export const chatReactions = pgTable("chat_reactions", {
+  id: varchar("id").primaryKey(),
+  messageId: varchar("message_id").notNull(),
+  emoji: text("emoji").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Betting markets — multiple market types beyond simple weekly winner
+export const bettingMarkets = pgTable("betting_markets", {
+  id: varchar("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  competitionId: varchar("competition_id").notNull(),
+  marketType: text("market_type").notNull().$type<"weekly_winner" | "head_to_head" | "over_under" | "top_three">(),
+  status: text("status").notNull().$type<"open" | "closed" | "settled">().default("open"),
+  // For head_to_head: the two agents
+  agentAId: varchar("agent_a_id"),
+  agentBId: varchar("agent_b_id"),
+  // For over_under: metric + threshold
+  metric: text("metric").$type<"totalReturn" | "sharpeRatio" | "maxDrawdown" | "compositeScore">(),
+  threshold: real("threshold"),
+  // For top_three: target agent
+  targetAgentId: varchar("target_agent_id"),
+  // Resolution
+  winnerOutcome: text("winner_outcome"), // "A" | "B" | "over" | "under" | "yes" | "no" | agentId
+  totalPool: real("total_pool").default(0),
+  closesAt: timestamp("closes_at").notNull(),
+  settledAt: timestamp("settled_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Market positions — bets placed on specific outcomes
+export const marketPositions = pgTable("market_positions", {
+  id: varchar("id").primaryKey(),
+  marketId: varchar("market_id").notNull(),
+  userId: varchar("user_id").notNull(),
+  outcome: text("outcome").notNull(), // "A" | "B" | "over" | "under" | "yes" | "no" | agentId
+  amount: real("amount").notNull(),
+  payout: real("payout"),
+  status: text("status").notNull().$type<"active" | "won" | "lost">().default("active"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Credit transactions — ledger for user balance tracking
+export const creditTransactions = pgTable("credit_transactions", {
+  id: varchar("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
+  amount: real("amount").notNull(), // positive = credit, negative = debit
+  type: text("type").notNull().$type<"deposit" | "bet_placed" | "bet_won" | "bet_lost" | "referral_bonus" | "signup_bonus">(),
+  referenceId: varchar("reference_id"), // bet or market id
+  description: text("description"),
+  balanceAfter: real("balance_after").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Market odds snapshots for chart history
+export const oddsSnapshots = pgTable("odds_snapshots", {
+  id: varchar("id").primaryKey(),
+  marketId: varchar("market_id").notNull(),
+  outcome: text("outcome").notNull(),
+  percentage: real("percentage").notNull(),
+  totalPool: real("total_pool").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertAgentSchema = createInsertSchema(agents).omit({ id: true, createdAt: true, status: true });
@@ -310,3 +379,8 @@ export type TournamentEntry = typeof tournamentEntries.$inferSelect;
 export type MarketEvent = typeof marketEvents.$inferSelect;
 export type AgentDiagnostic = typeof agentDiagnostics.$inferSelect;
 export type Referral = typeof referrals.$inferSelect;
+export type ChatReaction = typeof chatReactions.$inferSelect;
+export type BettingMarket = typeof bettingMarkets.$inferSelect;
+export type MarketPosition = typeof marketPositions.$inferSelect;
+export type CreditTransaction = typeof creditTransactions.$inferSelect;
+export type OddsSnapshot = typeof oddsSnapshots.$inferSelect;

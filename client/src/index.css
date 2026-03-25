@@ -239,15 +239,6 @@
   animation: shimmer 1.5s infinite;
 }
 
-/* Page fade-in animation */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.animate-in {
-  animation: fadeIn 0.2s ease-out;
-}
-
 /* Data grid background pattern */
 .grid-pattern {
   background-image:

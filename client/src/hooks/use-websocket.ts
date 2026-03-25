@@ -25,6 +25,9 @@ export function useWebSocket() {
             case "chat":
               queryClient.invalidateQueries({ queryKey: ["/api/chat"] });
               break;
+            case "chat_reaction":
+              queryClient.invalidateQueries({ queryKey: ["/api/chat"] });
+              break;
             case "duel":
               queryClient.invalidateQueries({ queryKey: ["/api/duels"] });
               break;
@@ -35,8 +38,14 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ["/api/prices"] });
               break;
             case "achievement":
-              // Invalidate all achievement queries
               queryClient.invalidateQueries({ predicate: (q) => q.queryKey.includes("achievements") });
+              break;
+            case "market":
+              queryClient.invalidateQueries({ queryKey: ["/api/markets"] });
+              queryClient.invalidateQueries({ queryKey: ["/api/bets/pool"] });
+              queryClient.invalidateQueries({ predicate: (q) =>
+                typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith("/api/markets/")
+              });
               break;
           }
         } catch {}

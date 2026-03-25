@@ -13,7 +13,7 @@ const navItems = [
   { path: "/duels", label: "Duels", icon: Swords },
   { path: "/feed", label: "Live Feed", icon: Radio },
   { path: "/chat", label: "Chat", icon: MessageSquare },
-  { path: "/bets", label: "Bets", icon: Coins },
+  { path: "/bets", label: "Markets", icon: Coins },
   { path: "/tournaments", label: "Tournaments", icon: Crown },
   { path: "/compare", label: "Compare", icon: GitCompare },
   { path: "/philosophy", label: "Philosophy Battle", icon: Brain },
@@ -182,7 +182,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto pt-12 md:pt-0">
-        <div className="min-h-full animate-in fade-in duration-200">
+        <div className="min-h-full">
           {children}
         </div>
       </main>
