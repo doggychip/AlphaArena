@@ -98,7 +98,9 @@ export async function updateLeaderboard() {
       .orderBy(asc(dailySnapshots.date));
 
     const returns = snapshots.map(s => s.dailyReturn);
-    const totalReturn = (portfolio.totalEquity - comp.startingCapital) / comp.startingCapital;
+    // Clamp totalReturn to realistic range (-100% to +500%)
+    const rawReturn = (portfolio.totalEquity - comp.startingCapital) / comp.startingCapital;
+    const totalReturn = Math.max(-1.0, Math.min(5.0, rawReturn));
     const sharpe = computeSharpe(returns) ?? 0;
     const sortino = computeSortino(returns) ?? 0;
     const equities = snapshots.map(s => s.totalEquity);

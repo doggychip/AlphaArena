@@ -43,7 +43,12 @@ async function revaluateAll() {
         const price = priceMap.get(p.pair) ?? p.currentPrice;
         return sum + price * p.quantity;
       }, 0);
-      const totalEquity = Math.round((portfolio.cashBalance + positionValue) * 100) / 100;
+      let totalEquity = Math.round((portfolio.cashBalance + positionValue) * 100) / 100;
+
+      // Cap total equity to max 6x starting capital (500% return) to prevent runaway values
+      const MAX_EQUITY_MULTIPLIER = 6;
+      const startingCapital = 100000; // default competition starting capital
+      totalEquity = Math.min(totalEquity, startingCapital * MAX_EQUITY_MULTIPLIER);
 
       await db.update(portfolios)
         .set({ totalEquity })
