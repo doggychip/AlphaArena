@@ -20,6 +20,7 @@ export default function ChallengePage() {
   const [selectedPair, setSelectedPair] = useState<string>("BTC/USD");
   const [selectedSide, setSelectedSide] = useState<"buy" | "sell">("buy");
   const [challengeAgent, setChallengeAgent] = useState<string>("");
+  const [activeTab, setActiveTab] = useState("challenge");
 
   const { data: leaderboard, isLoading } = useQuery<any[]>({
     queryKey: ["/api/leaderboard"],
@@ -47,8 +48,13 @@ export default function ChallengePage() {
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "Challenge Placed! 🎯", description: `You predicted ${selectedSide.toUpperCase()} on ${selectedPair}. Let's see if you beat ${challengeAgent}!` });
+      toast({ title: "Challenge Placed!", description: `You predicted ${selectedSide.toUpperCase()} on ${selectedPair} vs ${challengeAgent}. Results in 24 hours!` });
       queryClient.invalidateQueries({ queryKey: ["/api/challenges/active"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/challenges/history"] });
+      // Reset form and switch to Active tab
+      setSelectedAgent("");
+      setChallengeAgent("");
+      setActiveTab("active");
     },
     onError: (err: any) => {
       toast({ title: "Challenge Failed", description: err.message || "Could not place challenge", variant: "destructive" });
@@ -69,7 +75,7 @@ export default function ChallengePage() {
         Your prediction vs the legend's strategy — live results in 24 hours.
       </p>
 
-      <Tabs defaultValue="challenge" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-md">
           <TabsTrigger value="challenge">Make a Call</TabsTrigger>
           <TabsTrigger value="active">Active ({(activeChallenges ?? []).length})</TabsTrigger>
